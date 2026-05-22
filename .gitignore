@@ -1,0 +1,33 @@
+node_modules
+.next
+out
+build
+dist
+.DS_Store
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode
+.idea
+
+# misc
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+coverage
+
+# local dev artifacts
+local.db
+local.db-journal
+local.db-wal
+local.db-shm
+.env*.local
