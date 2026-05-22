@@ -83,8 +83,8 @@ Deliberately out of scope to keep the first version focused on the agent core:
 
 Ordered, not calendared.
 
-- [ ] Scaffold the service (Next.js + Turso) and base schema (`analyses`, evidence, report).
-- [ ] GitHub access layer: resolve ref → SHA, SSRF guard, tree fetch, blob/range read, code search.
+- [x] Scaffold the service (Next.js + Turso). *(base schema still placeholder — `items` table; real `analyses`/evidence/report schema pending)*
+- [x] GitHub access layer: resolve ref → SHA, SSRF guard, tree fetch, blob/range read. *(code search deferred — add when the agent's search tool needs it)*
 - [ ] Agent tool definitions + bounded exploration loop (budgets, prompt caching).
 - [ ] Synthesis pass → strict report schema (sections + cited findings).
 - [ ] Deterministic citation-validation step.
