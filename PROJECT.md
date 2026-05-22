@@ -83,7 +83,8 @@ Deliberately out of scope to keep the first version focused on the agent core:
 
 Ordered, not calendared.
 
-- [x] Scaffold the service (Next.js + Turso). *(base schema still placeholder — `items` table; real `analyses`/evidence/report schema pending)*
+- [x] Scaffold the service (Next.js + Turso).
+- [x] Data model: `analyses` (dedupe-keyed on owner/repo/sha), `reports` (1:1 structured report JSON), `run_events` (ordered, for SSE replay), plus `rate_limit_buckets`; typed dependency-injectable data layer in `src/db/analyses.ts`.
 - [x] GitHub access layer: resolve ref → SHA, SSRF guard, tree fetch, blob/range read. *(code search deferred — add when the agent's search tool needs it)*
 - [ ] Agent tool definitions + bounded exploration loop (budgets, prompt caching).
 - [ ] Synthesis pass → strict report schema (sections + cited findings).
