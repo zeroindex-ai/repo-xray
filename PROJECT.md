@@ -87,8 +87,8 @@ Ordered, not calendared.
 - [x] Data model: `analyses` (dedupe-keyed on owner/repo/sha), `reports` (1:1 structured report JSON), `run_events` (ordered, for SSE replay), plus `rate_limit_buckets`; typed dependency-injectable data layer in `src/db/analyses.ts`.
 - [x] GitHub access layer: resolve ref → SHA, SSRF guard, tree fetch, blob/range read. *(code search deferred — add when the agent's search tool needs it)*
 - [x] Agent tool definitions + bounded exploration loop (Sonnet, budgets, prompt caching, evidence capture, cost accounting). *(unit-tested with a mocked model; live wiring + smoke pending)*
-- [ ] Synthesis pass → strict report schema (sections + cited findings).
-- [ ] Deterministic citation-validation step.
+- [x] Synthesis pass (Opus 4.7) → strict report schema (Zod + wire JSON-schema; sections + cited findings). *(unit-tested with a mocked model)*
+- [x] Deterministic citation-validation step (re-reads each cited range, prunes unresolved citations + evidence-less findings).
 - [ ] Durable workflow wiring (fetch → explore → synthesize → validate → persist) with retries.
 - [ ] SSE streaming of run progress + live cost meter; report UI with citation links.
 - [ ] Rate limiting (per-client daily cap), global daily spend ceiling, SHA-dedupe cache.
