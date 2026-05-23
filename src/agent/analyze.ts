@@ -73,6 +73,10 @@ export function liveAnalyzeDeps(args: {
   };
 }
 
+// A first-pass analysis can't meaningfully cover a giant monorepo with the
+// agent's ~40-read budget — decline past this many files. Env-tunable.
+export const MAX_REPO_FILES = Number(process.env.MAX_REPO_FILES) || 2000;
+
 export async function analyzeRepo(
   input: string,
   deps: AnalyzeDeps,
@@ -119,6 +123,19 @@ export async function analyzeRepo(
 
     await emit({ type: 'phase', phase: 'fetching' });
     const tree = await deps.fetchTree(ref, commitSha);
+
+    // Decline oversized repos BEFORE any paid model call — a ~40-read first pass
+    // can't cover a giant monorepo, so it'd spend ~$0.40 to produce a poor report.
+    // (Per-run cost is already bounded by the agent budget; this is the quality +
+    // belt-and-suspenders gate. The tree fetch above is free.)
+    const blobCount = tree.entries.filter((e) => e.type === 'blob').length;
+    if (tree.truncated || blobCount > MAX_REPO_FILES) {
+      throw new Error(
+        `Repository is too large for a first-pass analysis (${
+          tree.truncated ? 'over 100k' : blobCount
+        } files; the cap is ${MAX_REPO_FILES}). Try a smaller repo.`
+      );
+    }
 
     await emit({ type: 'phase', phase: 'exploring' });
     const exploration = await runExploration({

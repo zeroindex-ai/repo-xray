@@ -132,6 +132,18 @@ describe('analyzeRepo', () => {
     expect(client.count).toBe(0);
   });
 
+  it('declines an oversized repo before any paid model call', async () => {
+    const client = fakeClient(happyResponses());
+    const bigDeps: AnalyzeDeps = {
+      ...deps(client),
+      fetchTree: async () => ({ sha: 'sha1', truncated: true, entries: [] }),
+    };
+    await expect(analyzeRepo('acme/widget', bigDeps)).rejects.toThrow(/too large/i);
+    expect(client.count).toBe(0); // no model calls ⇒ no spend
+    const { findByRepoSha } = await import('../db/analyses');
+    expect((await findByRepoSha('acme', 'widget', 'sha1', db))?.status).toBe('failed');
+  });
+
   it('emits pipeline phase events', async () => {
     const phases: string[] = [];
     const client = fakeClient(happyResponses());

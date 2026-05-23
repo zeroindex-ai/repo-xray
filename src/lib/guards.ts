@@ -33,7 +33,7 @@ export type DailyCapResult = { allowed: boolean; count: number; limit: number };
 /** Atomic per-client daily cap. Single statement closes the read-modify-write race. */
 export async function checkDailyCap(
   key: string,
-  limit = DEFAULT_DAILY_CAP,
+  limit = Number(process.env.ANALYZE_DAILY_CAP) || DEFAULT_DAILY_CAP,
   opts: { now?: () => number; client?: Conn } = {}
 ): Promise<DailyCapResult> {
   const now = opts.now ?? Date.now;
@@ -61,7 +61,7 @@ export type BudgetResult = { allowed: boolean; spentMicroUsd: number; ceilingMic
 
 /** Global daily spend ceiling — sum of today's analysis cost across all clients. */
 export async function checkGlobalDailyBudget(
-  ceilingUsd = DEFAULT_GLOBAL_DAILY_USD,
+  ceilingUsd = Number(process.env.GLOBAL_DAILY_USD_CEILING) || DEFAULT_GLOBAL_DAILY_USD,
   opts: { now?: () => number; client?: Conn } = {}
 ): Promise<BudgetResult> {
   const now = opts.now ?? Date.now;
