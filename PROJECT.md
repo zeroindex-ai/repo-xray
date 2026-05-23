@@ -89,9 +89,10 @@ Ordered, not calendared.
 - [x] Agent tool definitions + bounded exploration loop (Sonnet, budgets, prompt caching, evidence capture, cost accounting). *(unit-tested with a mocked model; live wiring + smoke pending)*
 - [x] Synthesis pass (Opus 4.7) → strict report schema (Zod + wire JSON-schema; sections + cited findings). *(unit-tested with a mocked model)*
 - [x] Deterministic citation-validation step (re-reads each cited range, prunes unresolved citations + evidence-less findings).
-- [ ] Durable workflow wiring (fetch → explore → synthesize → validate → persist) with retries.
-- [ ] SSE streaming of run progress + live cost meter; report UI with citation links.
-- [ ] Rate limiting (per-client daily cap), global daily spend ceiling, SHA-dedupe cache.
+- [ ] Durable workflow wiring (fetch → explore → synthesize → validate → persist) with retries. *(v0.1 runs the pipeline inside the SSE handler; WDK is the durability upgrade)*
+- [x] API: `POST /api/analyze` (SSE stream of phase/tool/cost events → final report) + `GET /api/analyze/:id` (stored report).
+- [ ] Report UI consuming the SSE stream (live tool calls + cost meter) with citation links.
+- [x] Cost/abuse guards: per-client daily cap + global daily $ ceiling (`src/lib/guards.ts`); SHA-dedupe cache (already in the orchestrator). SSRF guard in github.ts.
 - [ ] Span emission to the external tracing endpoint.
 - [ ] Eval set: golden repos + LLM-judge (coverage/accuracy) + deterministic citation-resolution check.
 - [ ] Admin view; deploy to `xray.zeroindex.ai`.
