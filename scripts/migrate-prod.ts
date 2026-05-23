@@ -1,8 +1,8 @@
 // One-off production migration runner. Run from your terminal with Turso creds
 // pulled from 1Password (NOT `vercel env pull` — Sensitive vars come back empty):
 //
-//   TURSO_DATABASE_URL="$(op read 'op://ZeroIndex LLC/Turso repo-xray/url')" \
-//   TURSO_AUTH_TOKEN="$(op read 'op://ZeroIndex LLC/Turso repo-xray/token')" \
+//   TURSO_DATABASE_URL="$(op read 'op://<vault>/Turso repo-xray/url')" \
+//   TURSO_AUTH_TOKEN="$(op read 'op://<vault>/Turso repo-xray/token')" \
 //   pnpm tsx scripts/migrate-prod.ts
 //
 // See the deploy-zeroindex-vercel-app skill, Phase C.

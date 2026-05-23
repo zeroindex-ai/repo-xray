@@ -3,8 +3,8 @@
 // Run with secrets injected at runtime (never written to disk):
 //
 //   TURSO_DATABASE_URL=file:local.db \
-//   ANTHROPIC_API_KEY="$(op read 'op://ZeroIndex LLC/repo-xray/ANTHROPIC_API_KEY')" \
-//   GITHUB_TOKEN="$(op read 'op://ZeroIndex LLC/repo-xray/GITHUB_TOKEN')" \
+//   ANTHROPIC_API_KEY="$(op read 'op://<vault>/repo-xray/ANTHROPIC_API_KEY')" \
+//   GITHUB_TOKEN="$(op read 'op://<vault>/repo-xray/GITHUB_TOKEN')" \
 //   pnpm tsx scripts/analyze.ts <owner/repo[@ref]>
 //
 // Pick a SMALL repo for the first run — each analysis spends real API budget.
