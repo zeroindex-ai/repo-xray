@@ -121,6 +121,9 @@ describe('analyzeRepo', () => {
     const row = await findByRepoSha('acme', 'widget', 'sha1', db);
     expect(row?.status).toBe('failed');
     expect(row?.error).toMatch(/parseable JSON/);
+    // The exploration cost was real money — it must be retained on the failed row,
+    // not rolled back, even though synthesis threw afterward.
+    expect(row?.costMicroUsd).toBeGreaterThan(0);
   });
 
   it('rejects a non-github target before any I/O (SSRF guard)', async () => {

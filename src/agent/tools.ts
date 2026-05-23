@@ -82,7 +82,7 @@ export function listDirectory(tree: TreeEntry[], path: string): string[] {
     if (!rest) continue;
     const slash = rest.indexOf('/');
     if (slash === -1) {
-      // Direct child file (only if it's a blob; tree entries for dirs are listed too).
+      // A direct child: a file shows as its bare name, a subdirectory with a trailing slash.
       children.add(entry.type === 'tree' ? `${rest}/` : rest);
     } else {
       children.add(`${rest.slice(0, slash)}/`);

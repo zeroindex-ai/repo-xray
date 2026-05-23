@@ -71,10 +71,14 @@ export async function getOrCreateAnalysis(
   client: Conn = db()
 ): Promise<{ analysis: Analysis; created: boolean }> {
   const id = randomUUID();
-  await client.execute({
+  // One round-trip: the no-op DO UPDATE makes the upsert RETURN a row whether it
+  // inserted or hit the existing one. `created` is inferred from whether the
+  // returned id is the one we just generated. Race-safe via the UNIQUE index.
+  const res = await client.execute({
     sql: `INSERT INTO analyses (id, owner, repo, ref, commit_sha, default_branch, tree_truncated)
           VALUES (:id, :owner, :repo, :ref, :sha, :branch, :trunc)
-          ON CONFLICT (owner, repo, commit_sha) DO NOTHING`,
+          ON CONFLICT (owner, repo, commit_sha) DO UPDATE SET updated_at = updated_at
+          RETURNING *`,
     args: {
       id,
       owner: input.owner,
@@ -85,9 +89,10 @@ export async function getOrCreateAnalysis(
       trunc: input.treeTruncated ? 1 : 0,
     },
   });
-  const found = await findByRepoSha(input.owner, input.repo, input.commitSha, client);
-  if (!found) throw new Error('getOrCreateAnalysis: row vanished after upsert');
-  return { analysis: found, created: found.id === id };
+  const row = res.rows[0];
+  if (!row) throw new Error('getOrCreateAnalysis: upsert returned no row');
+  const analysis = rowToAnalysis(row as Record<string, unknown>);
+  return { analysis, created: analysis.id === id };
 }
 
 export async function findByRepoSha(

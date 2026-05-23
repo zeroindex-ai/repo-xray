@@ -20,10 +20,18 @@ export type ValidationStats = {
   findingsDropped: number;
 };
 
-// Normalize for comparison: collapse runs of whitespace so trivial reflowing
-// (leading indentation, trailing spaces) doesn't fail an otherwise-real quote.
+// Normalize for comparison PER LINE: collapse intra-line whitespace and trim each
+// line, but preserve line breaks. This keeps the guarantee close to "verbatim at
+// the cited lines" — a multi-line quote must match the line structure — while
+// still tolerating indentation/trailing-space reflow. (The earlier version
+// collapsed newlines too, weakening the guarantee to "the words appear somewhere
+// in the cited range".)
 function normalize(s: string): string {
-  return s.replace(/\s+/g, ' ').trim();
+  return s
+    .split('\n')
+    .map((line) => line.replace(/[^\S\n]+/g, ' ').trim())
+    .join('\n')
+    .trim();
 }
 
 async function citationResolves(

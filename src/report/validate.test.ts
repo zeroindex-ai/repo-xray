@@ -41,6 +41,23 @@ describe('validateReport', () => {
     expect(stats.citationsValid).toBe(1);
   });
 
+  it('resolves a multi-line quote that matches the cited line structure', async () => {
+    const { stats } = await validateReport(
+      reportWith({ path: 'cli.js', startLine: 2, endLine: 3, quote: 'exec(userInput)\nline three' }),
+      reader(files)
+    );
+    expect(stats.citationsValid).toBe(1);
+  });
+
+  it('rejects a multi-line quote whose newline was collapsed to a space', async () => {
+    // Proves the guarantee is "verbatim at the cited lines", not "words appear in range".
+    const { stats } = await validateReport(
+      reportWith({ path: 'cli.js', startLine: 2, endLine: 3, quote: 'exec(userInput) line three' }),
+      reader(files)
+    );
+    expect(stats.citationsValid).toBe(0);
+  });
+
   it('drops a fabricated quote, and the finding with it', async () => {
     const { report, stats } = await validateReport(
       reportWith({ path: 'cli.js', startLine: 2, endLine: 2, quote: 'rm -rf /' }),
