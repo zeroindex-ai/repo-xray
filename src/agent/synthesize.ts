@@ -18,9 +18,10 @@ export const SYNTH_SYSTEM = [
   'Write the report as JSON matching the provided schema. Lead with onboarding: section order is',
   'overview, then onboarding (where to start, how to run it), then architecture, then risk.',
   '',
-  'Ground every finding in the supplied evidence: each citation must reference a path and line',
-  'range that appears in the excerpts, and its quote must be copied verbatim from that excerpt.',
-  'Do not invent files, lines, or quotes — only cite what you were given. A short report of',
+  'Ground every finding in the supplied evidence. The excerpts are line-numbered as',
+  '"<number>\\t<text>": use those exact line numbers in startLine/endLine, but the quote must be',
+  'the source text ONLY — do not include the leading "<number>\\t" prefix. Do not invent files,',
+  'lines, or quotes — only cite what you were given. A short report of',
   'verifiable findings is better than a long one of guesses. Use the "risk" section only for',
   'concerns you can point at in the code.',
 ].join('\n');
@@ -72,8 +73,17 @@ export function extractJson(text: string): unknown {
 
 function renderEvidence(evidence: EvidenceItem[]): string {
   if (evidence.length === 0) return '(no files were read)';
+  // Line-number each excerpt so citations use real line numbers instead of
+  // guesses — the citation validator re-reads the exact cited range, so accurate
+  // numbers are what keep findings from being dropped.
   return evidence
-    .map((e) => `--- ${e.path} (lines ${e.startLine}-${e.endLine}) ---\n${e.quote}`)
+    .map((e) => {
+      const numbered = e.quote
+        .split('\n')
+        .map((line, i) => `${e.startLine + i}\t${line}`)
+        .join('\n');
+      return `--- ${e.path} (lines ${e.startLine}-${e.endLine}) ---\n${numbered}`;
+    })
     .join('\n\n');
 }
 
