@@ -1,0 +1,260 @@
+{
+  "summary": "@sindresorhus/slugify is a small ESM-only Node.js library (≥ Node 20) that turns arbitrary strings into URL/filename/ID-safe slugs. The implementation lives almost entirely in index.js (~140 lines), with a tiny data file for default symbol replacements, a TypeScript declaration file, and an Ava-based test suite. The main entry exports a default `slugify(string, options?)` plus a stateful `slugifyWithCounter()` that appends `-2`, `-3`, ... to repeated inputs.",
+  "sections": [
+    {
+      "kind": "overview",
+      "title": "What this package is",
+      "findings": [
+        {
+          "claim": "Single-purpose string slugifier with broad language support",
+          "detail": "Package describes itself as 'Slugify a string' and the readme highlights multi-language handling (German umlauts, Vietnamese, Arabic, Russian, etc.).",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 2,
+              "endLine": 4,
+              "quote": "\"name\": \"@sindresorhus/slugify\",\n\t\"version\": \"3.0.0\",\n\t\"description\": \"Slugify a string\","
+            },
+            {
+              "path": "readme.md",
+              "startLine": 1,
+              "endLine": 7,
+              "quote": "# slugify\n\n> Slugify a string\n\nUseful for URLs, filenames, and IDs.\n\nIt handles most major languages, including [German (umlauts)](https://en.wikipedia.org/wiki/Germanic_umlaut), Vietnamese, Arabic, Russian, [and more](https://github.com/sindresorhus/transliterate#supported-languages)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "onboarding",
+      "title": "How to install, run, and start reading",
+      "findings": [
+        {
+          "claim": "Install as a dependency with npm",
+          "detail": "Readme documents the standard install command.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "readme.md",
+              "startLine": 9,
+              "endLine": 13,
+              "quote": "## Install\n\n```sh\nnpm install @sindresorhus/slugify\n```"
+            }
+          ]
+        },
+        {
+          "claim": "`npm test` runs the linter and the Ava test suite",
+          "detail": "The only script defined is `test`, which runs `xo` and then `ava`. Dev deps confirm both are available.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 22,
+              "endLine": 24,
+              "quote": "\"scripts\": {\n\t\t\"test\": \"xo && ava\"\n\t},"
+            },
+            {
+              "path": "package.json",
+              "startLine": 53,
+              "endLine": 56,
+              "quote": "\"devDependencies\": {\n\t\t\"ava\": \"^6.4.1\",\n\t\t\"xo\": \"^1.2.2\"\n\t},"
+            }
+          ]
+        },
+        {
+          "claim": "ESM-only package requiring Node ≥ 20",
+          "detail": "`type: module` plus an `engines.node` floor of 20 mean callers must use `import` and a modern Node runtime.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 13,
+              "endLine": 21,
+              "quote": "\"type\": \"module\",\n\t\"exports\": {\n\t\t\"types\": \"./index.d.ts\",\n\t\t\"default\": \"./index.js\"\n\t},\n\t\"sideEffects\": false,\n\t\"engines\": {\n\t\t\"node\": \">=20\"\n\t},"
+            }
+          ]
+        },
+        {
+          "claim": "Recommended reading order: readme → index.js → tests",
+          "detail": "`index.js` is the entire implementation (default `slugify` plus `slugifyWithCounter`), and the Ava tests in `test.js` are the most thorough specification of edge cases (possessives, counter behavior, preserveCharacters errors, transliterate:false).",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "test.js",
+              "startLine": 1,
+              "endLine": 4,
+              "quote": "import test from 'ava';\nimport slugify, {slugifyWithCounter} from './index.js';\n\ntest('main', t => {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "architecture",
+      "title": "How the code is organized",
+      "findings": [
+        {
+          "claim": "Only three files are published to consumers",
+          "detail": "`package.json`'s `files` array ships just the implementation, the type declarations, and the small replacements data file.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 25,
+              "endLine": 29,
+              "quote": "\"files\": [\n\t\t\"index.js\",\n\t\t\"index.d.ts\",\n\t\t\"overridable-replacements.js\"\n\t],"
+            }
+          ]
+        },
+        {
+          "claim": "Default symbol→word replacements live in a tiny standalone module",
+          "detail": "`overridable-replacements.js` exports just three pairs (`&`, `🦄`, `♥`) that are merged with user replacements inside `slugify`.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "overridable-replacements.js",
+              "startLine": 1,
+              "endLine": 7,
+              "quote": "const overridableReplacements = [\n\t['&', ' and '],\n\t['🦄', ' unicorn '],\n\t['♥', ' love '],\n];\n\nexport default overridableReplacements;"
+            },
+            {
+              "path": "index.js",
+              "startLine": 66,
+              "endLine": 72,
+              "quote": "\tif (options.transliterate) {\n\t\tconst customReplacements = new Map([\n\t\t\t...builtinOverridableReplacements,\n\t\t\t...options.customReplacements,\n\t\t]);\n\n\t\tstring = transliterate(string, {customReplacements, locale: options.locale});"
+            }
+          ]
+        },
+        {
+          "claim": "`slugify` pipeline: validate → merge options → optional transliterate + replacements → optional decamelize → build pattern → lowercase → strip possessives → replace disallowed chars → collapse separators → restore preserved affixes",
+          "detail": "The function flow in `index.js` follows these stages in order; the regex pattern of disallowed characters is built dynamically from the active options.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 80,
+              "endLine": 107,
+              "quote": "\tif (options.decamelize) {\n\t\tstring = decamelize(string);\n\t}\n\n\tconst patternSlug = buildPatternSlug(options);\n\n\tif (options.lowercase) {\n\t\tstring = options.locale ? string.toLocaleLowerCase(options.locale) : string.toLowerCase();\n\t}\n\n\t// Detect contractions/possessives by looking for any word followed by a `'t` or `'s`\n\t// in isolation and then remove it. Handles both straight and curly apostrophes.\n\tstring = string.replaceAll(/([a-zA-Z\\d]+)['\\u2019]([ts])(\\s|$)/g, '$1$2$3');\n\n\tstring = string.replace(patternSlug, options.separator);\n\tstring = string.replaceAll('\\\\', '');\n\n\tif (options.separator) {\n\t\tstring = removeMootSeparators(string, options.separator);\n\t}\n\n\tif (shouldPrependUnderscore) {\n\t\tstring = `_${string}`;\n\t}\n\n\tif (shouldAppendDash) {\n\t\tstring = `${string}-`;\n\t}"
+            }
+          ]
+        },
+        {
+          "claim": "`decamelize` is a small chain of four regex replacements with special handling for plural acronyms",
+          "detail": "The final rule excludes `s` (`[a-rt-z]`) so that `APIs` is not split into `API s`. Tests cover this behavior explicitly.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 5,
+              "endLine": 13,
+              "quote": "const decamelize = string => string\n\t// Separate capitalized words.\n\t.replaceAll(/([A-Z]{2,})(\\d+)/g, '$1 $2')\n\t.replaceAll(/([a-z\\d]+)([A-Z]{2,})/g, '$1 $2')\n\n\t.replaceAll(/([a-z\\d])([A-Z])/g, '$1 $2')\n\t// `[a-rt-z]` matches all lowercase characters except `s`.\n\t// This avoids matching plural acronyms like `APIs`.\n\t.replaceAll(/([A-Z]+)([A-Z][a-rt-z\\d]+)/g, '$1 $2');"
+            }
+          ]
+        },
+        {
+          "claim": "Two runtime dependencies: transliteration and regex escaping",
+          "detail": "`@sindresorhus/transliterate` provides the Unicode→ASCII mapping and accepts the merged `customReplacements` Map; `escape-string-regexp` is used when injecting user-controlled strings (separator, preserveCharacters) into dynamic regexes.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 1,
+              "endLine": 3,
+              "quote": "import escapeStringRegexp from 'escape-string-regexp';\nimport transliterate from '@sindresorhus/transliterate';\nimport builtinOverridableReplacements from './overridable-replacements.js';"
+            },
+            {
+              "path": "package.json",
+              "startLine": 49,
+              "endLine": 52,
+              "quote": "\"dependencies\": {\n\t\t\"@sindresorhus/transliterate\": \"^2.0.0\",\n\t\t\"escape-string-regexp\": \"^5.0.0\"\n\t},"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "risk",
+      "title": "Behavioral subtleties and gotchas",
+      "findings": [
+        {
+          "claim": "`transliterate: false` silently disables built-in replacements like `&` → `and`",
+          "detail": "When `transliterate` is false the code skips the merge with `builtinOverridableReplacements` and only applies the user's `customReplacements`. A test asserts that `'foo & bar'` becomes `'foo-bar'` (not `'foo-and-bar'`) in that mode — a subtle behavioral cliff for callers who toggle transliteration off for performance.",
+          "severity": "medium",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 66,
+              "endLine": 78,
+              "quote": "\tif (options.transliterate) {\n\t\tconst customReplacements = new Map([\n\t\t\t...builtinOverridableReplacements,\n\t\t\t...options.customReplacements,\n\t\t]);\n\n\t\tstring = transliterate(string, {customReplacements, locale: options.locale});\n\t} else if (options.customReplacements.length > 0) {\n\t\t// Apply custom replacements even when transliteration is disabled\n\t\tfor (const [key, value] of options.customReplacements) {\n\t\t\tstring = string.replaceAll(key, value);\n\t\t}\n\t}"
+            },
+            {
+              "path": "test.js",
+              "startLine": 247,
+              "endLine": 249,
+              "quote": "\t// Built-in replacements (like & -> and) are disabled when transliterate is false\n\tt.is(slugify('foo & bar', {transliterate: false}), 'foo-bar');"
+            }
+          ]
+        },
+        {
+          "claim": "`preserveCharacters` overlapping `separator` throws",
+          "detail": "`buildPatternSlug` throws an `Error` if any preserved character equals the separator. Callers that build options dynamically must guard against this; tests confirm two throwing cases.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "test.js",
+              "startLine": 211,
+              "endLine": 216,
+              "quote": "\tt.throws(() => {\n\t\tslugify('foo', {separator: '-', preserveCharacters: ['-']});\n\t});\n\tt.throws(() => {\n\t\tslugify('foo', {separator: '.', preserveCharacters: ['.']});\n\t});"
+            }
+          ]
+        },
+        {
+          "claim": "`slugify` calls `string.replace(patternSlug, ...)` instead of `replaceAll`",
+          "detail": "The disallowed-character regex is created with the `g` flag (or `gu`) so a single `.replace` does replace all matches — but the asymmetry vs. nearby `.replaceAll` calls is easy to misread when editing. Any future change that drops the `g` flag from `buildPatternSlug` would silently break slug generation.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 42,
+              "endLine": 43,
+              "quote": "\tconst flags = options.transliterate ? 'g' : 'gu';\n\treturn new RegExp(`[^${negationSetPattern}]+`, flags);"
+            },
+            {
+              "path": "index.js",
+              "startLine": 94,
+              "endLine": 95,
+              "quote": "\tstring = string.replace(patternSlug, options.separator);\n\tstring = string.replaceAll('\\\\', '');"
+            }
+          ]
+        },
+        {
+          "claim": "`slugifyWithCounter` state is per-instance and never auto-resets",
+          "detail": "Each call to `slugifyWithCounter()` returns its own closure over a `Map`. Sharing one instance across unrelated documents/requests will cause counts to bleed across them; callers must call `.reset()` themselves. Test 'counter' demonstrates how aggressively state accumulates.",
+          "severity": "medium",
+          "evidence": [
+            {
+              "path": "test.js",
+              "startLine": 172,
+              "endLine": 196,
+              "quote": "\tslugify.reset();\n\n\tt.is(slugify('foo'), 'foo');\n\tt.is(slugify('foo'), 'foo-2');\n\tt.is(slugify('foo 1'), 'foo-1');\n\tt.is(slugify('foo-1'), 'foo-1-2');\n\tt.is(slugify('foo-1'), 'foo-1-3');\n\tt.is(slugify('foo'), 'foo-3');\n\tt.is(slugify('foo'), 'foo-4');\n\tt.is(slugify('foo-1'), 'foo-1-4');\n\tt.is(slugify('foo-2'), 'foo-2-1');\n\tt.is(slugify('foo-2'), 'foo-2-2');\n\tt.is(slugify('foo-2-1'), 'foo-2-1-1');\n\tt.is(slugify('foo-2-1'), 'foo-2-1-2');\n\tt.is(slugify('foo-11'), 'foo-11-1');\n\tt.is(slugify('foo-111'), 'foo-111-1');\n\tt.is(slugify('foo-111-1'), 'foo-111-1-1');"
+            }
+          ]
+        },
+        {
+          "claim": "Possessive stripping only handles `'s` and `'t` followed by whitespace or end-of-string",
+          "detail": "The regex requires the suffix character to be exactly `t` or `s` and then `(\\s|$)`. Possessives mid-word like `Conway's-Law` (apostrophe followed by `-`) would not be cleaned up the same way, since the lookahead doesn't include the separator. Worth knowing when debugging unexpected hyphenation around quoted text.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 90,
+              "endLine": 92,
+              "quote": "\t// Detect contractions/possessives by looking for any word followed by a `'t` or `'s`\n\t// in isolation and then remove it. Handles both straight and curly apostrophes.\n\tstring = string.replaceAll(/([a-zA-Z\\d]+)['\\u2019]([ts])(\\s|$)/g, '$1$2$3');"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

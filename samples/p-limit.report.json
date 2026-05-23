@@ -1,0 +1,395 @@
+{
+  "summary": "`p-limit` is a tiny, ESM-only utility library that caps how many promise-returning functions run concurrently. The entire implementation is 128 lines in `index.js`, backed by a `yocto-queue` linked-list. It exposes a default `pLimit(concurrency)` factory returning a callable `LimitFunction` (with `activeCount`, `pendingCount`, `concurrency`, `clearQueue`, `map`) and a named `limitFunction(fn, options)` helper that wraps a single function. Requires Node.js ≥ 20; tested via `xo`, `ava`, and `tsd` on Node 20/22/24.",
+  "sections": [
+    {
+      "kind": "overview",
+      "title": "What this package does",
+      "findings": [
+        {
+          "claim": "Single-purpose library: run async functions with limited concurrency",
+          "detail": "The package describes itself as a utility for running multiple promise-returning & async functions with limited concurrency. Version 7.3.0, MIT-licensed, with only `yocto-queue` as a runtime dependency.",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 2,
+              "endLine": 6,
+              "quote": "\t\"name\": \"p-limit\","
+            },
+            {
+              "path": "package.json",
+              "startLine": 47,
+              "endLine": 49,
+              "quote": "\t\"dependencies\": {"
+            },
+            {
+              "path": "readme.md",
+              "startLine": 1,
+              "endLine": 5,
+              "quote": "# p-limit"
+            }
+          ]
+        },
+        {
+          "claim": "Two public exports: default `pLimit` and named `limitFunction`",
+          "detail": "`pLimit(concurrency)` returns a callable `LimitFunction` with introspection and control members. `limitFunction(fn, options)` wraps a single function with its own private limiter.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 3,
+              "endLine": 3,
+              "quote": "export default function pLimit(concurrency) {"
+            },
+            {
+              "path": "index.js",
+              "startLine": 117,
+              "endLine": 121,
+              "quote": "export function limitFunction(function_, options) {"
+            },
+            {
+              "path": "index.d.ts",
+              "startLine": 89,
+              "endLine": 89,
+              "quote": "export default function pLimit(concurrency: number | Options): LimitFunction;"
+            }
+          ]
+        },
+        {
+          "claim": "ESM-only, Node 20+",
+          "detail": "`package.json` declares `\"type\": \"module\"` and `engines.node >= 20`. The `exports` field exposes only `index.js` + types.",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 13,
+              "endLine": 21,
+              "quote": "\t\"type\": \"module\","
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "onboarding",
+      "title": "Where to start and how to run it",
+      "findings": [
+        {
+          "claim": "Read `index.js` first — the entire implementation is 128 lines",
+          "detail": "All the runtime logic (queueing, run loop, concurrency setter, clearQueue, validation, `limitFunction`) is in one file. `index.d.ts` is the authoritative API surface.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 1,
+              "endLine": 3,
+              "quote": "import Queue from 'yocto-queue';"
+            },
+            {
+              "path": "index.js",
+              "startLine": 117,
+              "endLine": 127,
+              "quote": "export function limitFunction(function_, options) {"
+            }
+          ]
+        },
+        {
+          "claim": "Run the full check suite via `npm test`",
+          "detail": "The `test` script chains `xo` (lint), `ava` (tests in `test.js`), and `tsd` (type tests in `index.test-d.ts`). Benchmarks run via `npm run benchmark`.",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 22,
+              "endLine": 25,
+              "quote": "\t\"scripts\": {"
+            }
+          ]
+        },
+        {
+          "claim": "CI runs `npm test` on Node 20, 22, and 24",
+          "detail": "GitHub Actions workflow matrix builds three Node versions and runs `npm install` then `npm test`.",
+          "evidence": [
+            {
+              "path": ".github/workflows/main.yml",
+              "startLine": 11,
+              "endLine": 22,
+              "quote": "      matrix:"
+            }
+          ]
+        },
+        {
+          "claim": "`test.js` is the best place to learn edge cases",
+          "detail": "It covers concurrency 1 and N, async context propagation via `AsyncLocalStorage`, sync throws, error propagation, `activeCount`/`pendingCount`, `clearQueue` (and `rejectOnClear`), `map`, invalid arguments, dynamic concurrency up/down, and `limitFunction`.",
+          "evidence": [
+            {
+              "path": "test.js",
+              "startLine": 1,
+              "endLine": 9,
+              "quote": "import process from 'node:process';"
+            },
+            {
+              "path": "test.js",
+              "startLine": 275,
+              "endLine": 303,
+              "quote": "test('throws on invalid concurrency argument', t => {"
+            }
+          ]
+        },
+        {
+          "claim": "`recipes.md` documents real-world patterns",
+          "detail": "Covers batch file processing, fetch fan-out, error handling with `Promise.allSettled`, graceful shutdown via `clearQueue`, dynamic concurrency adjustment, reusable limited functions, shared-context providers, and progress reporting.",
+          "evidence": [
+            {
+              "path": "recipes.md",
+              "startLine": 1,
+              "endLine": 17,
+              "quote": "# Recipes"
+            },
+            {
+              "path": "recipes.md",
+              "startLine": 76,
+              "endLine": 114,
+              "quote": "## Graceful shutdown"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "architecture",
+      "title": "How the limiter is implemented",
+      "findings": [
+        {
+          "claim": "A `yocto-queue` instance holds pending items; `activeCount` tracks running tasks",
+          "detail": "`enqueue` pushes a `{reject, run}` item, `resumeNext` dequeues and invokes `run()` when `activeCount < concurrency`, and `next` decrements after each task and tries to resume.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 16,
+              "endLine": 30,
+              "quote": "\tconst queue = new Queue();"
+            },
+            {
+              "path": "index.js",
+              "startLine": 50,
+              "endLine": 64,
+              "quote": "\tconst enqueue = (function_, resolve, reject, arguments_) => {"
+            }
+          ]
+        },
+        {
+          "claim": "Async-context preservation is intentional",
+          "detail": "Each queue item wraps its trigger in `new Promise(internalResolve => …)` and uses `.then(run.bind(undefined, …))` so the original async execution context (e.g., `AsyncLocalStorage`) is retained when the task eventually runs.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 53,
+              "endLine": 58,
+              "quote": "\t\t// Queue the internal resolve function instead of the run function"
+            },
+            {
+              "path": "test.js",
+              "startLine": 45,
+              "endLine": 58,
+              "quote": "test('propagates async execution context properly', async t => {"
+            }
+          ]
+        },
+        {
+          "claim": "`run` forwards the result promise to the caller before awaiting it, and swallows the awaited error",
+          "detail": "`resolve(result)` is called immediately so the original caller sees both fulfillments and rejections; the local `await result` is wrapped in `try { … } catch {}` purely to avoid an unhandled-rejection warning before `next()` runs.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 32,
+              "endLine": 48,
+              "quote": "\tconst run = async (function_, resolve, arguments_) => {"
+            }
+          ]
+        },
+        {
+          "claim": "Increasing `concurrency` drains pending tasks inside a `queueMicrotask`",
+          "detail": "The setter validates the new value and schedules a microtask that calls `resumeNext()` repeatedly while there is slack, avoiding reentrant synchronous draining.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 91,
+              "endLine": 104,
+              "quote": "\t\tconcurrency: {"
+            }
+          ]
+        },
+        {
+          "claim": "`clearQueue` either drops or rejects pending items",
+          "detail": "When `rejectOnClear` is false (default), it calls `queue.clear()`. When true, it dequeues every pending item and rejects it with `AbortSignal.abort().reason` (a DOMException named `AbortError`).",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 77,
+              "endLine": 89,
+              "quote": "\t\tclearQueue: {"
+            },
+            {
+              "path": "test.js",
+              "startLine": 199,
+              "endLine": 215,
+              "quote": "testClearQueueRejects('clearQueue rejects pending promises when enabled', async t => {"
+            }
+          ]
+        },
+        {
+          "claim": "`limit.map` is a thin wrapper over `Promise.all`",
+          "detail": "It builds `Array.from(iterable, (value, index) => this(function_, value, index))` and awaits all of them — supports arrays, sets, and iterators.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 106,
+              "endLine": 111,
+              "quote": "\t\tmap: {"
+            },
+            {
+              "path": "test.js",
+              "startLine": 239,
+              "endLine": 255,
+              "quote": "test('map accepts an iterable (set)', async t => {"
+            }
+          ]
+        },
+        {
+          "claim": "`limitFunction` simply binds a private `pLimit` to a single function",
+          "detail": "It calls `pLimit(options)` once and returns a closure that always submits the same function through that limiter.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 117,
+              "endLine": 121,
+              "quote": "export function limitFunction(function_, options) {"
+            }
+          ]
+        },
+        {
+          "claim": "`concurrency` validation accepts only positive integers or `Infinity`",
+          "detail": "Used at construction and on every setter call; floats, zero, negatives, undefined, booleans, and missing options properties all throw.",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 123,
+              "endLine": 127,
+              "quote": "function validateConcurrency(concurrency) {"
+            },
+            {
+              "path": "test.js",
+              "startLine": 275,
+              "endLine": 303,
+              "quote": "test('throws on invalid concurrency argument', t => {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "risk",
+      "title": "Behavioral gotchas worth knowing",
+      "findings": [
+        {
+          "claim": "Reentrant calls into the same limiter can deadlock",
+          "detail": "The README explicitly warns: a function already running under a limiter that calls the same `limit` again can starve, because no slot frees up until the outer function returns. Use a separate limiter for inner tasks.",
+          "severity": "medium",
+          "evidence": [
+            {
+              "path": "readme.md",
+              "startLine": 76,
+              "endLine": 76,
+              "quote": "Warning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks."
+            },
+            {
+              "path": "index.d.ts",
+              "startLine": 49,
+              "endLine": 49,
+              "quote": "\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks."
+            }
+          ]
+        },
+        {
+          "claim": "`clearQueue()` without `rejectOnClear` leaves dropped promises forever pending",
+          "detail": "By default, `queue.clear()` discards items without resolving or rejecting them; their externally-visible promises never settle, so `Promise.all` on them will hang. The README/recipes recommend `rejectOnClear: true` or `Promise.allSettled` for graceful shutdown.",
+          "severity": "medium",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 77,
+              "endLine": 89,
+              "quote": "\t\tclearQueue: {"
+            },
+            {
+              "path": "readme.md",
+              "startLine": 96,
+              "endLine": 105,
+              "quote": "### limit.clearQueue()"
+            },
+            {
+              "path": "recipes.md",
+              "startLine": 76,
+              "endLine": 114,
+              "quote": "## Graceful shutdown"
+            }
+          ]
+        },
+        {
+          "claim": "`clearQueue()` does not cancel already-running tasks",
+          "detail": "Only pending entries in the queue are dropped/rejected; tasks already passed to `run()` continue until they settle.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "readme.md",
+              "startLine": 100,
+              "endLine": 102,
+              "quote": "This might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app."
+            },
+            {
+              "path": "index.d.ts",
+              "startLine": 22,
+              "endLine": 22,
+              "quote": "\tNote: This does not cancel promises that are already running."
+            }
+          ]
+        },
+        {
+          "claim": "ESM-only — no CommonJS build is published",
+          "detail": "`package.json` sets `\"type\": \"module\"` and the `exports` map exposes only `./index.js`. Consumers on CommonJS toolchains need dynamic `import()` or interop.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "package.json",
+              "startLine": 13,
+              "endLine": 17,
+              "quote": "\t\"type\": \"module\","
+            }
+          ]
+        },
+        {
+          "claim": "Node 20 test for AbortError-rejection is skipped due to a runtime bug",
+          "detail": "`test.js` conditionally skips the `rejectOnClear` rejection test on Node 20 because of a DOMException interaction with AVA's `throwsAsync`. The feature itself ships, but isn't exercised by CI on Node 20.",
+          "severity": "low",
+          "evidence": [
+            {
+              "path": "test.js",
+              "startLine": 196,
+              "endLine": 215,
+              "quote": "// Node.js 20 has a bug where DOMException is not properly handled by AVA's `throwsAsync`."
+            }
+          ]
+        },
+        {
+          "claim": "Errors awaited inside `run` are silently swallowed locally",
+          "detail": "The `try { await result; } catch {}` in `run` is required to keep `next()` reachable and to avoid unhandled-rejection noise, but it means any logic added between the `await` and `next()` will not see the failure. The caller still sees the rejection via `resolve(result)`.",
+          "severity": "info",
+          "evidence": [
+            {
+              "path": "index.js",
+              "startLine": 32,
+              "endLine": 48,
+              "quote": "\tconst run = async (function_, resolve, arguments_) => {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
