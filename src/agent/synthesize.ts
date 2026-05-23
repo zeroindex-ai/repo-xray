@@ -106,11 +106,16 @@ export async function synthesizeReport(opts: SynthesizeOptions): Promise<Synthes
     renderEvidence(opts.evidence),
   ].join('\n');
 
-  const response = await opts.client.messages.create({
+  // Typed base keeps model/max_tokens/system/messages checked; the cast only
+  // loosens the merge to admit newer params (thinking/output_config.format).
+  const base: Anthropic.MessageCreateParamsNonStreaming = {
     model,
     max_tokens: opts.maxTokens ?? 16_000,
     system: SYNTH_SYSTEM,
     messages: [{ role: 'user', content: userMessage }],
+  };
+  const response = await opts.client.messages.create({
+    ...base,
     ...(opts.extraParams ?? {
       thinking: { type: 'adaptive' },
       output_config: { effort: 'high', format: { type: 'json_schema', schema: REPORT_JSON_SCHEMA } },

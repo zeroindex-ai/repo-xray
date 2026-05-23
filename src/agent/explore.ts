@@ -139,12 +139,17 @@ export async function runExploration(opts: ExploreOptions): Promise<ExploreResul
     }
 
     iterations += 1;
-    const response = await opts.client.messages.create({
+    // Typed base so model/max_tokens/system/tools/messages stay type-checked; the
+    // cast only loosens the merge to admit newer params (thinking/output_config).
+    const base: Anthropic.MessageCreateParamsNonStreaming = {
       model,
       max_tokens: budget.maxTokensPerCall,
       system,
       tools,
       messages,
+    };
+    const response = await opts.client.messages.create({
+      ...base,
       ...(opts.extraParams ?? { thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } }),
     } as Anthropic.MessageCreateParamsNonStreaming);
 
