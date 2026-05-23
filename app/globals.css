@@ -27,6 +27,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-y: scroll; /* always show the scrollbar gutter so short pages don't shift centered content vs taller pages */
 }
 
 body {
@@ -79,15 +80,11 @@ body {
   opacity: 0.6;
 }
 
-/* Tier B sticky header — matches evals-site/public/index.html.
-   See zeroindexai/STYLE_GUIDE.md §6. */
+/* Canonical subdomain sticky header (matches trace-pack). Just the sticky bg —
+   the bottom border lives on the inner container div (border-b line) so it's
+   container-width, not full-bleed. No scroll-toggle JS. */
 .site-header {
   background: var(--bg);
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s ease;
-}
-.site-header.scrolled {
-  border-bottom-color: var(--line);
 }
 
 .brand-link {
@@ -432,4 +429,156 @@ code.chip {
   overflow-x: auto;
   white-space: pre;
   margin: 0;
+}
+
+/* ── repo-xray: submit form + run log + report ── */
+/* Input as a prefix-group: a fixed `github.com/` adornment + a bare input, so the
+   base URL is always visible and "owner/repo" is the obvious thing to type. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.15s ease;
+}
+.field:focus-within {
+  border-color: var(--accent-1);
+}
+.field .prefix {
+  color: var(--muted-2);
+  user-select: none;
+  white-space: nowrap;
+}
+.field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+.field input::placeholder {
+  color: var(--muted-2);
+}
+
+/* Dark gradient pill — canonical CTA (matches trace-pack). Used by the header
+   back-link and the submit button; the disabled/cursor bits support the button. */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  background: linear-gradient(120deg, #18181b 0%, #27272a 100%);
+  color: #faf9f5;
+  border: none;
+  border-radius: 9999px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 24px -12px rgba(124, 58, 237, 0.35);
+  transform: translateY(-2px);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* risk severity tag — outlined mono pill, color carries the level */
+.sev {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.sev-info {
+  color: var(--muted-2);
+}
+.sev-low {
+  color: var(--muted);
+}
+.sev-medium {
+  color: var(--warn);
+}
+.sev-high {
+  color: var(--error);
+}
+
+/* citation chip — links to exact GitHub lines */
+.cite {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--accent-1);
+  text-decoration: none;
+  background: rgba(124, 58, 237, 0.07);
+  padding: 1px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+.cite:hover {
+  background: rgba(124, 58, 237, 0.14);
+}
+
+.run-line {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* "don't refresh" note — sits above the run card */
+.run-note {
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* "still working" indicator — a pulsing accent dot, paired with a ticking timer */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--accent-1);
+  animation: pulse-dot 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot {
+    animation: none;
+  }
+}
+
+/* The report's lead summary — same card frame, body size, and muted color as the
+   section text; the "Summary" label is what distinguishes it. */
+.lead-card p {
+  color: var(--muted);
 }

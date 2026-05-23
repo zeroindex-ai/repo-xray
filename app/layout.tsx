@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Repo X-Ray · ZeroIndex',
-  description: 'Repo X-Ray — a ZeroIndex service.',
+  description:
+    'Point an agent at a public GitHub repo and get a cited onboarding report — every claim linked to the exact lines.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -29,45 +29,47 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to content
         </a>
 
-        <header id="siteHeader" className="site-header sticky top-0 z-30">
-          <div className="max-w-6xl mx-auto px-6 md:px-10 py-5 flex items-center justify-between">
-            <a href="https://zeroindex.ai" className="brand-link" aria-label="ZeroIndex home">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="4 0 24 32"
-                width="27"
-                height="36"
-                aria-hidden="true"
-              >
-                <path
-                  d="M185 -110V830H465V715H310V5H465V-110Z"
-                  fill="#3f3f46"
-                  transform="translate(1 23.2) scale(0.02 -0.02)"
-                />
-                <path
-                  d="M300 -10Q229 -10 177.0 17.0Q125 44 96.5 93.0Q68 142 68 208V522Q68 588 96.5 637.0Q125 686 177.0 713.0Q229 740 300 740Q371 740 423.0 713.0Q475 686 503.5 637.0Q532 588 532 522V208Q532 142 503.5 93.0Q475 44 423.0 17.0Q371 -10 300 -10ZM186 522V288L410 554Q401 590 372.0 611.0Q343 632 300 632Q247 632 216.5 602.0Q186 572 186 522ZM300 98Q352 98 383.0 128.0Q414 158 414 208V442L190 176Q199 140 228.0 119.0Q257 98 300 98Z"
-                  fill="#7c3aed"
-                  transform="translate(10 23.2) scale(0.02 -0.02)"
-                />
-                <path
-                  d="M135 -110V5H290V715H135V830H415V-110Z"
-                  fill="#3f3f46"
-                  transform="translate(19 23.2) scale(0.02 -0.02)"
-                />
-              </svg>
-              <span className="brand-name">ZeroIndex</span>
-            </a>
-            <a
-              href="https://zeroindex.ai"
-              className="text-sm muted inline-link hover:opacity-80 transition-opacity"
-            >
-              &larr; zeroindex.ai
-            </a>
+        <header className="site-header sticky top-0 z-30">
+          <div className="max-w-6xl mx-auto px-6 md:px-10">
+            <div className="py-5 flex items-center justify-between border-b line">
+              <a href="https://zeroindex.ai" className="brand-link" aria-label="ZeroIndex home">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="4 0 24 32"
+                  width="27"
+                  height="36"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M185 -110V830H465V715H310V5H465V-110Z"
+                    fill="#3f3f46"
+                    transform="translate(1 23.2) scale(0.02 -0.02)"
+                  />
+                  <path
+                    d="M300 -10Q229 -10 177.0 17.0Q125 44 96.5 93.0Q68 142 68 208V522Q68 588 96.5 637.0Q125 686 177.0 713.0Q229 740 300 740Q371 740 423.0 713.0Q475 686 503.5 637.0Q532 588 532 522V208Q532 142 503.5 93.0Q475 44 423.0 17.0Q371 -10 300 -10ZM186 522V288L410 554Q401 590 372.0 611.0Q343 632 300 632Q247 632 216.5 602.0Q186 572 186 522ZM300 98Q352 98 383.0 128.0Q414 158 414 208V442L190 176Q199 140 228.0 119.0Q257 98 300 98Z"
+                    fill="#7c3aed"
+                    transform="translate(10 23.2) scale(0.02 -0.02)"
+                  />
+                  <path
+                    d="M135 -110V5H290V715H135V830H415V-110Z"
+                    fill="#3f3f46"
+                    transform="translate(19 23.2) scale(0.02 -0.02)"
+                  />
+                </svg>
+                <span className="brand-name">ZeroIndex</span>
+              </a>
+              <a href="https://zeroindex.ai" className="btn-primary">
+                <span aria-hidden="true">&larr;</span>
+                zeroindex.ai
+              </a>
+            </div>
           </div>
         </header>
 
         <div className="max-w-6xl w-full mx-auto px-6 md:px-10 flex-1 flex flex-col">
-          <main id="main-content" className="flex-1">{children}</main>
+          <main id="main-content" className="flex-1">
+            {children}
+          </main>
 
           <footer className="border-t line py-10 text-sm">
             <div className="muted flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
@@ -83,10 +85,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
           </footer>
         </div>
-
-        <Script id="sticky-header-listener" strategy="afterInteractive">
-          {`(function(){var h=document.getElementById('siteHeader');if(!h)return;function f(){h.classList.toggle('scrolled',window.scrollY>4)}window.addEventListener('scroll',f,{passive:true});f()})();`}
-        </Script>
       </body>
     </html>
   );
