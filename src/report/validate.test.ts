@@ -29,7 +29,12 @@ describe('validateReport', () => {
       reportWith({ path: 'cli.js', startLine: 2, endLine: 2, quote: 'exec(userInput)' }),
       reader(files)
     );
-    expect(stats).toMatchObject({ citationsChecked: 1, citationsValid: 1, findingsKept: 1, findingsDropped: 0 });
+    expect(stats).toMatchObject({
+      citationsChecked: 1,
+      citationsValid: 1,
+      findingsKept: 1,
+      findingsDropped: 0,
+    });
     expect(report.sections[0]!.findings).toHaveLength(1);
   });
 
@@ -53,6 +58,30 @@ describe('validateReport', () => {
     // Proves the guarantee is "verbatim at the cited lines", not "words appear in range".
     const { stats } = await validateReport(
       reportWith({ path: 'cli.js', startLine: 2, endLine: 3, quote: 'exec(userInput) line three' }),
+      reader(files)
+    );
+    expect(stats.citationsValid).toBe(0);
+  });
+
+  it('resolves a quote that echoed the "<n>\\t" evidence line-number prefix', async () => {
+    // The model occasionally copies the line-numbered evidence verbatim ("2\texec…").
+    // That prefix is a formatting artifact, not a miscitation — it should still resolve.
+    const single = await validateReport(
+      reportWith({ path: 'cli.js', startLine: 2, endLine: 2, quote: '2\texec(userInput)' }),
+      reader(files)
+    );
+    expect(single.stats.citationsValid).toBe(1);
+
+    const multi = await validateReport(
+      reportWith({ path: 'cli.js', startLine: 2, endLine: 3, quote: '2\texec(userInput)\n3\tline three' }),
+      reader(files)
+    );
+    expect(multi.stats.citationsValid).toBe(1);
+  });
+
+  it('still rejects a wrong quote even after prefix stripping (no false resolve)', async () => {
+    const { stats } = await validateReport(
+      reportWith({ path: 'cli.js', startLine: 2, endLine: 2, quote: '2\trm -rf /' }),
       reader(files)
     );
     expect(stats.citationsValid).toBe(0);

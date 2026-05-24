@@ -34,11 +34,25 @@ function normalize(s: string): string {
     .trim();
 }
 
+// The synthesis evidence is line-numbered as "<n>\t<text>", and the prompt tells
+// the model to quote the source text ONLY. When it slips and echoes the "<n>\t"
+// prefix, that's a formatting artifact — not a miscitation — but it would fail the
+// verbatim match and drop an otherwise-correct citation. Strip a leading
+// "<digits>\t" from each quoted line before matching. A literal tab immediately
+// after leading digits does not occur in real source, so this can never make a
+// genuinely wrong quote resolve (it only un-breaks correct, prefix-tainted ones).
+function stripEvidencePrefix(quote: string): string {
+  return quote
+    .split('\n')
+    .map((line) => line.replace(/^\d+\t/, ''))
+    .join('\n');
+}
+
 async function citationResolves(
   citation: { path: string; startLine: number; endLine: number; quote: string },
   readFile: FileReader
 ): Promise<boolean> {
-  const quote = normalize(citation.quote);
+  const quote = normalize(stripEvidencePrefix(citation.quote));
   if (!quote) return false;
   try {
     const slice = await readFile(citation.path, citation.startLine, citation.endLine);
