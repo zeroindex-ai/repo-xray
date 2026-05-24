@@ -1,6 +1,5 @@
 // Data-access layer for analysis runs. Every function takes an optional libsql
-// client (defaulting to the lazy singleton) so tests can inject an in-memory DB
-// — the same dependency-injection shape as src/lib/rateLimit.ts.
+// client (defaulting to the lazy singleton) so tests can inject an in-memory DB.
 
 import { randomUUID } from 'node:crypto';
 import type { Client, InValue } from '@libsql/client';
@@ -163,11 +162,7 @@ export async function appendEvent(
 }
 
 /** Events for an analysis in order, optionally only those after `afterSeq` (SSE replay). */
-export async function getEvents(
-  analysisId: string,
-  afterSeq = 0,
-  client: Conn = db()
-): Promise<RunEvent[]> {
+export async function getEvents(analysisId: string, afterSeq = 0, client: Conn = db()): Promise<RunEvent[]> {
   const res = await client.execute({
     sql: `SELECT seq, type, data_json, created_at FROM run_events
           WHERE analysis_id = ? AND seq > ? ORDER BY seq ASC`,
