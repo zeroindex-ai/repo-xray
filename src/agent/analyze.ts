@@ -14,14 +14,7 @@ import {
   type RepoRef,
   type RepoTree,
 } from '../lib/github';
-import {
-  addCost,
-  appendEvent,
-  getOrCreateAnalysis,
-  getReport,
-  saveReport,
-  setStatus,
-} from '../db/analyses';
+import { addCost, appendEvent, getOrCreateAnalysis, getReport, saveReport, setStatus } from '../db/analyses';
 import type { Report } from '../report/schema';
 import { validateReport, type ValidationStats } from '../report/validate';
 import { type Budget, type ExploreEvent, type MessagesClient, runExploration } from './explore';
@@ -54,6 +47,12 @@ export type AnalyzeResult = {
   stats: ValidationStats | null;
   costMicroUsd: number;
   cached: boolean;
+  /** Per-phase metrics for observability. Absent on a cache hit (no run happened). */
+  telemetry?: {
+    toolCalls: number;
+    exploreCostMicroUsd: number;
+    synthCostMicroUsd: number;
+  };
 };
 
 // Bind the real GitHub + DB implementations. `githubToken` lifts the unauth
@@ -175,6 +174,11 @@ export async function analyzeRepo(
       stats: validated.stats,
       costMicroUsd: exploration.costMicroUsd + synth.costMicroUsd,
       cached: false,
+      telemetry: {
+        toolCalls: exploration.toolCalls,
+        exploreCostMicroUsd: exploration.costMicroUsd,
+        synthCostMicroUsd: synth.costMicroUsd,
+      },
     };
   } catch (err) {
     await setStatus(id, 'failed', { error: (err as Error).message }, deps.db);

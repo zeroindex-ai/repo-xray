@@ -8,6 +8,7 @@ import { analyzeRepo, type AnalyzeDeps } from '@/agent/analyze';
 import { parseRepoInput } from '@/lib/github';
 import { liveDepsFromEnv } from '@/lib/analyze-deps';
 import { checkDailyCap, checkGlobalDailyBudget, clientKey } from '@/lib/guards';
+import { logAnalysis } from '@/lib/logAnalysis';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // agent runs are long; replaces the old vercel.json
@@ -58,6 +59,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const input = `${ref.owner}/${ref.repo}${ref.ref ? `@${ref.ref}` : ''}`;
+  const repo = `${ref.owner}/${ref.repo}`;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -65,21 +67,40 @@ export async function POST(request: Request): Promise<Response> {
       const send = (event: string, data: unknown) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
+      const t0 = Date.now();
       try {
         const result = await analyzeRepo(input, deps, {
           onEvent: (e) => send(e.type, e), // 'phase' | 'explore'
         });
         send('report', {
           analysisId: result.analysisId,
-          repo: `${ref.owner}/${ref.repo}`,
+          repo,
           commitSha: result.commitSha,
           cached: result.cached,
           costMicroUsd: result.costMicroUsd,
           stats: result.stats,
           report: result.report,
         });
+        // Fire-and-forget observability dual-write to trace-pack (no-op if unconfigured).
+        logAnalysis({
+          status: 'ok',
+          totalMs: Date.now() - t0,
+          repo,
+          analysisId: result.analysisId,
+          commitSha: result.commitSha,
+          cached: result.cached,
+          costMicroUsd: result.costMicroUsd,
+          toolCalls: result.telemetry?.toolCalls,
+          exploreCostMicroUsd: result.telemetry?.exploreCostMicroUsd,
+          synthCostMicroUsd: result.telemetry?.synthCostMicroUsd,
+          citationsChecked: result.stats?.citationsChecked,
+          citationsValid: result.stats?.citationsValid,
+          findingsKept: result.stats?.findingsKept,
+          findingsDropped: result.stats?.findingsDropped,
+        });
       } catch (e) {
         send('error', { message: (e as Error).message });
+        logAnalysis({ status: 'error', totalMs: Date.now() - t0, repo, outcomeReason: (e as Error).message });
       } finally {
         controller.close();
       }
