@@ -4,7 +4,7 @@
 // a malformed or schema-violating response fails loudly rather than silently.
 
 import type Anthropic from '@anthropic-ai/sdk';
-import { costMicroUsd, OPUS_4_7_PRICING } from './cost';
+import { costMicroUsd, pricingForModel } from './cost';
 import type { EvidenceItem } from './tools';
 import type { MessagesClient } from './explore';
 import { type Report, REPORT_JSON_SCHEMA, ReportSchema } from '../report/schema';
@@ -130,6 +130,6 @@ export async function synthesizeReport(opts: SynthesizeOptions): Promise<Synthes
   return {
     report: parsed.data,
     usage: response.usage,
-    costMicroUsd: costMicroUsd(response.usage, OPUS_4_7_PRICING),
+    costMicroUsd: costMicroUsd(response.usage, pricingForModel(model)),
   };
 }

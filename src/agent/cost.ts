@@ -31,6 +31,13 @@ export const OPUS_4_7_PRICING: Pricing = {
   cacheReadPerMTok: 0.5,
 };
 
+// Pick pricing from a model id. Opus models bill at the Opus rate; everything
+// else (Sonnet, and the default) at the Sonnet rate. Keeps cost accurate when
+// the synthesis model is swapped (e.g. the Sonnet-vs-Opus eval).
+export function pricingForModel(model: string): Pricing {
+  return /opus/i.test(model) ? OPUS_4_7_PRICING : SONNET_4_6_PRICING;
+}
+
 // micro-USD = tokens × (USD per MTok), since tokens/1e6 × perMTok × 1e6 = tokens × perMTok.
 export function costMicroUsd(usage: TokenUsage, pricing: Pricing = SONNET_4_6_PRICING): number {
   const input = usage.input_tokens ?? 0;

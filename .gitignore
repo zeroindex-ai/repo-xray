@@ -31,3 +31,6 @@ local.db-journal
 local.db-wal
 local.db-shm
 .env*.local
+
+# eval run outputs (timestamped JSON; not committed to the app repo)
+evals/results/

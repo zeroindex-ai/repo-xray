@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "items": [
+    {
+      "id": "is-plain-obj",
+      "category": "micro-lib",
+      "question": "sindresorhus/is-plain-obj",
+      "must_mention": ["object"],
+      "metadata": { "minCitationResolution": 0.85 }
+    },
+    {
+      "id": "slugify",
+      "category": "micro-lib",
+      "question": "sindresorhus/slugify",
+      "must_mention": ["slug"],
+      "metadata": { "minCitationResolution": 0.85 }
+    },
+    {
+      "id": "p-limit",
+      "category": "micro-lib",
+      "question": "sindresorhus/p-limit",
+      "must_mention": ["promise"],
+      "metadata": { "minCitationResolution": 0.85 }
+    },
+    {
+      "id": "eval-pack",
+      "category": "toolkit",
+      "question": "zeroindex-ai/eval-pack",
+      "must_mention": ["eval"],
+      "metadata": { "minCitationResolution": 0.85 }
+    },
+    {
+      "id": "mcp-pack",
+      "category": "monorepo",
+      "question": "zeroindex-ai/mcp-pack",
+      "must_mention": ["mcp"],
+      "metadata": { "minCitationResolution": 0.85 }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import {
   costMicroUsd,
   emptyUsageTotals,
   OPUS_4_7_PRICING,
+  pricingForModel,
   SONNET_4_6_PRICING,
 } from './cost';
 
@@ -32,6 +33,14 @@ describe('costMicroUsd', () => {
   it('matches the documented Sonnet rate constants', () => {
     expect(SONNET_4_6_PRICING.inputPerMTok).toBe(3);
     expect(SONNET_4_6_PRICING.cacheReadPerMTok).toBe(0.3);
+  });
+});
+
+describe('pricingForModel', () => {
+  it('prices Opus models at the Opus rate and everything else at Sonnet', () => {
+    expect(pricingForModel('claude-opus-4-7')).toBe(OPUS_4_7_PRICING);
+    expect(pricingForModel('claude-sonnet-4-6')).toBe(SONNET_4_6_PRICING);
+    expect(pricingForModel('claude-haiku-4-5')).toBe(SONNET_4_6_PRICING); // default branch
   });
 });
 

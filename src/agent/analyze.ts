@@ -34,6 +34,8 @@ export type AnalyzeDeps = {
 export type AnalyzeOptions = {
   budget?: Partial<Budget>;
   onEvent?: (event: AnalyzeEvent) => void | Promise<void>;
+  /** Override the synthesis model (e.g. the Sonnet-vs-Opus eval). Defaults to SYNTH_MODEL. */
+  synthModel?: string;
 };
 
 export type AnalyzeEvent =
@@ -157,6 +159,7 @@ export async function analyzeRepo(
       commitSha,
       notes: exploration.notes,
       evidence: exploration.evidence,
+      model: opts.synthModel,
     });
     await addCost(id, synth.costMicroUsd, deps.db);
 

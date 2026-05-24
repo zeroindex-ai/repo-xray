@@ -1,0 +1,47 @@
+name: Eval
+
+# Each eval run spends real Anthropic budget (a live analysis per golden repo),
+# so this does NOT run on push/PR — only on demand (workflow_dispatch) and a
+# weekly schedule. It skips cleanly if ANTHROPIC_API_KEY isn't configured.
+on:
+  workflow_dispatch:
+    inputs:
+      synth_model:
+        description: 'Synthesis model (blank = default Opus 4.7; e.g. claude-sonnet-4-6 for the A/B)'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 14 * * 1' # Mondays 14:00 UTC
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # built-in token lifts the GitHub API rate limit
+          SYNTH_MODEL: ${{ inputs.synth_model }}
+          EVAL_PASS_THRESHOLD: '0.8'
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ANTHROPIC_API_KEY secret not configured; skipping eval."
+            exit 0
+          fi
+          pnpm eval
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: evals/results/
+          if-no-files-found: ignore
