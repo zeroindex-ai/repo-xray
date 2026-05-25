@@ -7,6 +7,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { costMicroUsd, pricingForModel } from './cost';
 import type { EvidenceItem } from './tools';
 import type { MessagesClient } from './explore';
+import { buildMessageParams, type MessageRequest } from './messageParams';
 import { type Report, REPORT_JSON_SCHEMA, ReportSchema } from '../report/schema';
 
 export const SYNTH_MODEL = 'claude-opus-4-7';
@@ -106,21 +107,24 @@ export async function synthesizeReport(opts: SynthesizeOptions): Promise<Synthes
     renderEvidence(opts.evidence),
   ].join('\n');
 
-  // Typed base keeps model/max_tokens/system/messages checked; the cast only
-  // loosens the merge to admit newer params (thinking/output_config.format).
-  const base: Anthropic.MessageCreateParamsNonStreaming = {
+  // Typed base + typed tuning defaults (adaptive thinking + json_schema output
+  // format); `extraParams`, when given, replaces the tuning block. No call-site cast.
+  const base: MessageRequest = {
     model,
     max_tokens: opts.maxTokens ?? 16_000,
     system: SYNTH_SYSTEM,
     messages: [{ role: 'user', content: userMessage }],
   };
-  const response = await opts.client.messages.create({
-    ...base,
-    ...(opts.extraParams ?? {
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'high', format: { type: 'json_schema', schema: REPORT_JSON_SCHEMA } },
-    }),
-  } as Anthropic.MessageCreateParamsNonStreaming);
+  const response = await opts.client.messages.create(
+    buildMessageParams(
+      base,
+      {
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'high', format: { type: 'json_schema', schema: REPORT_JSON_SCHEMA } },
+      },
+      opts.extraParams
+    )
+  );
 
   const parsed = ReportSchema.safeParse(extractJson(textOf(response.content)));
   if (!parsed.success) {
