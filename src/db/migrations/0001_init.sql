@@ -2,8 +2,9 @@
 -- Every statement is idempotent (IF NOT EXISTS) so re-runs are no-ops.
 -- Applied in filename-sort order by src/db/migrate.ts.
 
--- Token buckets backing src/lib/rateLimit.ts. One row per client key
--- (`ip:<addr>` or `fp:<hash>`). Required by every public unauth endpoint.
+-- Token buckets from the service scaffold's limiter. Unused by repo-xray, which
+-- gates the analyze endpoint via the per-client daily cap + global daily-$ ceiling
+-- in request_counts (0002); this table is dropped in 0003 (kept here for history).
 CREATE TABLE IF NOT EXISTS rate_limit_buckets (
   key        TEXT    PRIMARY KEY,
   tokens     REAL    NOT NULL,
