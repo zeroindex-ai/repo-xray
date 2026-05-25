@@ -1,6 +1,7 @@
 // Owner-only admin drill-down for one analysis: typed fields, the run-events
 // timeline, and the stored report. Gated by proxy.ts. Server component, fresh.
 
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAnalysis, getEvents, getReport } from '@/db/analyses';
@@ -10,6 +11,7 @@ import type { Report } from '@/report/schema';
 import { CopyButton } from '../CopyButton';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Analysis · Repo X-Ray Admin · ZeroIndex' };
 
 // A compact one-line detail for a run event, by event type.
 function eventDetail(data: unknown): string {
