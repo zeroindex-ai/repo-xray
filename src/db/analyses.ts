@@ -132,6 +132,24 @@ export async function findByRepoSha(
   return res.rows[0] ? rowToAnalysis(res.rows[0] as Record<string, unknown>) : null;
 }
 
+/**
+ * Newest succeeded analysis for a repo, regardless of commit SHA. Backs the
+ * sticky-by-repo serving of the sample ("Try") repos: an active sample's HEAD
+ * moves, but we return the stored report instead of re-running on every push.
+ * rowid breaks created_at ties so the pick is deterministic.
+ */
+export async function latestSucceededByRepo(
+  owner: string,
+  repo: string,
+  client: Conn = db()
+): Promise<Analysis | null> {
+  const res = await client.execute({
+    sql: "SELECT * FROM analyses WHERE owner = ? AND repo = ? AND status = 'succeeded' ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    args: [owner, repo],
+  });
+  return res.rows[0] ? rowToAnalysis(res.rows[0] as Record<string, unknown>) : null;
+}
+
 export async function getAnalysis(id: string, client: Conn = db()): Promise<Analysis | null> {
   const res = await client.execute({ sql: 'SELECT * FROM analyses WHERE id = ?', args: [id] });
   return res.rows[0] ? rowToAnalysis(res.rows[0] as Record<string, unknown>) : null;

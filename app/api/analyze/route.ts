@@ -8,6 +8,7 @@ import { analyzeRepo, type AnalyzeDeps } from '@/agent/analyze';
 import { parseRepoInput } from '@/lib/github';
 import { liveDepsFromEnv } from '@/lib/analyze-deps';
 import { checkDailyCap, checkGlobalDailyBudget, clientKey } from '@/lib/guards';
+import { isSampleRepo } from '@/lib/samples';
 import { logAnalysis } from '@/lib/logAnalysis';
 
 export const runtime = 'nodejs';
@@ -45,13 +46,21 @@ export async function POST(request: Request): Promise<Response> {
   // Guards + dependency init can throw (DB error, or a missing ANTHROPIC_API_KEY
   // in the server env). Catch here so the client gets a clean message instead of
   // a bare 500; the real cause is logged server-side (don't leak env-var names).
+  // Sample ("Try") repos serve their pre-cached report sticky-by-repo and are
+  // exempt from the daily cap + budget — the point of the samples is that they're
+  // viewable even when a visitor can't run a fresh analysis. A sample with no
+  // stored report yet seeds once (also exempt), then sticks.
+  const sample = isSampleRepo(ref.owner, ref.repo);
+
   let deps: AnalyzeDeps;
   try {
-    const key = clientKey(request.headers);
-    const cap = await checkDailyCap(key);
-    if (!cap.allowed) return err(429, `Daily analysis limit reached (${cap.limit}/day). Try again tomorrow.`);
-    const budget = await checkGlobalDailyBudget();
-    if (!budget.allowed) return err(503, 'Service is over its daily budget. Please try again tomorrow.');
+    if (!sample) {
+      const key = clientKey(request.headers);
+      const cap = await checkDailyCap(key);
+      if (!cap.allowed) return err(429, `Daily analysis limit reached (${cap.limit}/day). Try again tomorrow.`);
+      const budget = await checkGlobalDailyBudget();
+      if (!budget.allowed) return err(503, 'Service is over its daily budget. Please try again tomorrow.');
+    }
     deps = liveDepsFromEnv();
   } catch (e) {
     console.error('[analyze] setup failed:', e);
@@ -71,6 +80,7 @@ export async function POST(request: Request): Promise<Response> {
       try {
         const result = await analyzeRepo(input, deps, {
           onEvent: (e) => send(e.type, e), // 'phase' | 'explore'
+          sticky: sample, // serve sample repos from the latest stored report
         });
         send('report', {
           analysisId: result.analysisId,

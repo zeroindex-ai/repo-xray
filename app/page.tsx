@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Report } from '@/report/schema';
+import { SAMPLE_REPOS } from '@/lib/samples';
 import { ReportView } from './ReportView';
 
 type Stats = {
@@ -23,8 +24,6 @@ type ReportPayload = {
 
 type Status = 'idle' | 'running' | 'done' | 'error';
 type ToolCall = { seq: number; name: string; input: unknown };
-
-const EXAMPLES = ['zeroindex-ai/eval-pack', 'zeroindex-ai/mcp-pack', 'sindresorhus/slugify'];
 
 // A completed report survives a page refresh (sessionStorage, tab-scoped). Mirrors
 // contract-lens's one-shot post-hydration restore. Only the finished result is
@@ -183,7 +182,7 @@ export default function Home() {
 
   return (
     <>
-      <section className="pt-10 pb-8">
+      <section className="pt-10 pb-8 no-print">
         <div className="label mb-3">Repo X-Ray</div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Get oriented in any GitHub repo.</h1>
         <p className="mt-4 muted text-base leading-relaxed max-w-5xl">
@@ -214,7 +213,7 @@ export default function Home() {
         </form>
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className="label mr-1">Try</span>
-          {EXAMPLES.map((ex) => (
+          {SAMPLE_REPOS.map((ex) => (
             <button
               key={ex}
               type="button"
@@ -276,23 +275,33 @@ export default function Home() {
           )}
 
           {status === 'done' && result && (
-            <div>
-              <div className="event-meta mono text-xs muted-2 mb-8">
-                <span>
-                  {result.repo}@{result.commitSha.slice(0, 8)}
-                </span>
-                <span className="meta-sep">&middot;</span>
-                <span>{result.cached ? 'cached' : 'fresh'}</span>
-                <span className="meta-sep">&middot;</span>
-                <span>{usd(result.costMicroUsd)}</span>
-                {result.stats && (
-                  <>
-                    <span className="meta-sep">&middot;</span>
-                    <span>
-                      {result.stats.citationsValid}/{result.stats.citationsChecked} citations resolved
-                    </span>
-                  </>
-                )}
+            <div className="report-doc">
+              <div className="flex items-start justify-between gap-3 mb-8 no-print">
+                <div className="event-meta mono text-xs muted-2">
+                  <span>
+                    {result.repo}@{result.commitSha.slice(0, 8)}
+                  </span>
+                  <span className="meta-sep">&middot;</span>
+                  <span>{result.cached ? 'cached' : 'fresh'}</span>
+                  <span className="meta-sep">&middot;</span>
+                  <span>{usd(result.costMicroUsd)}</span>
+                  {result.stats && (
+                    <>
+                      <span className="meta-sep">&middot;</span>
+                      <span>
+                        {result.stats.citationsValid}/{result.stats.citationsChecked} citations resolved
+                      </span>
+                    </>
+                  )}
+                </div>
+                <button type="button" className="btn-ghost" onClick={() => window.print()}>
+                  Download PDF
+                </button>
+              </div>
+              {/* Print-only header: the app chrome is hidden in the PDF, so stamp the
+                  report with its source repo + commit for provenance. */}
+              <div className="print-only report-print-head mono mb-6">
+                {result.repo}@{result.commitSha.slice(0, 8)}
               </div>
               <ReportView repo={result.repo} commitSha={result.commitSha} report={result.report} />
             </div>

@@ -9,6 +9,7 @@ import {
   getEvents,
   getOrCreateAnalysis,
   getReport,
+  latestSucceededByRepo,
   listAnalyses,
   saveReport,
   setStatus,
@@ -155,5 +156,34 @@ describe('listAnalyses', () => {
     expect(page1.rows).toHaveLength(2);
     expect(page2.rows).toHaveLength(1);
     expect(page1.total).toBe(3);
+  });
+});
+
+describe('latestSucceededByRepo', () => {
+  async function seed(sha: string, status: 'succeeded' | 'failed' | 'queued') {
+    const { analysis } = await getOrCreateAnalysis({ ...base, commitSha: sha }, client);
+    if (status !== 'queued') await setStatus(analysis.id, status, {}, client);
+    return analysis.id;
+  }
+
+  it('returns null when the repo has no succeeded analysis', async () => {
+    await seed('sha-1', 'failed');
+    await seed('sha-2', 'queued');
+    expect(await latestSucceededByRepo(base.owner, base.repo, client)).toBeNull();
+  });
+
+  it('returns the newest succeeded row regardless of commit SHA', async () => {
+    const oldId = await seed('sha-old', 'succeeded');
+    await seed('sha-mid', 'failed');
+    const newId = await seed('sha-new', 'succeeded');
+    const got = await latestSucceededByRepo(base.owner, base.repo, client);
+    expect(got?.id).toBe(newId);
+    expect(got?.id).not.toBe(oldId);
+    expect(got?.commitSha).toBe('sha-new');
+  });
+
+  it('is scoped to the given owner/repo', async () => {
+    await seed('sha-1', 'succeeded');
+    expect(await latestSucceededByRepo('other', 'repo', client)).toBeNull();
   });
 });

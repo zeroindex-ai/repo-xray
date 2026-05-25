@@ -742,3 +742,53 @@ code.chip {
     height: 44px;
   }
 }
+
+/* Shown only in the printed/PDF output (the app chrome is hidden there). */
+.print-only {
+  display: none;
+}
+.report-print-head {
+  font-size: 13px;
+  color: var(--muted-2);
+}
+
+/* ── Print / "Download PDF" ───────────────────────────────────────────────
+   The Download-PDF button calls window.print(); this stylesheet turns the page
+   into a clean report document — drops the app chrome, the input form, and the
+   on-screen controls (.no-print), and prints the report on white with the
+   citation links preserved (selectable text + working GitHub URLs). */
+@media print {
+  .site-header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  html {
+    overflow: visible !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  /* use the full page width — the on-screen max-w-6xl container is too narrow */
+  .max-w-6xl {
+    max-width: none !important;
+  }
+  /* flatten card chrome for print; keep a hairline so sections stay legible */
+  .card {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+  }
+  .lead-card,
+  .finding {
+    break-inside: avoid;
+  }
+  /* citations: readable on white, and keep them as bordered text chips */
+  .cite {
+    color: #1a1a1a !important;
+    background: none !important;
+    border: 1px solid #ccc !important;
+  }
+}

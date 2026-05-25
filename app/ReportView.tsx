@@ -37,7 +37,7 @@ export function ReportView({
             <div className="label mb-4">{section.title}</div>
             <div className="flex flex-col gap-5">
               {section.findings.map((f, j) => (
-                <div key={j}>
+                <div key={j} className="finding">
                   <div className="flex items-baseline gap-3 flex-wrap">
                     {f.severity && <span className={`sev ${SEV_CLASS[f.severity]}`}>{f.severity}</span>}
                     <span className="font-semibold">{f.claim}</span>

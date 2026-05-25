@@ -14,7 +14,15 @@ import {
   type RepoRef,
   type RepoTree,
 } from '../lib/github';
-import { addCost, appendEvent, getOrCreateAnalysis, getReport, saveReport, setStatus } from '../db/analyses';
+import {
+  addCost,
+  appendEvent,
+  getOrCreateAnalysis,
+  getReport,
+  latestSucceededByRepo,
+  saveReport,
+  setStatus,
+} from '../db/analyses';
 import type { Report } from '../report/schema';
 import { validateReport, type ValidationStats } from '../report/validate';
 import { type Budget, type ExploreEvent, type MessagesClient, runExploration } from './explore';
@@ -36,6 +44,13 @@ export type AnalyzeOptions = {
   onEvent?: (event: AnalyzeEvent) => void | Promise<void>;
   /** Override the synthesis model (e.g. the Sonnet-vs-Opus eval). Defaults to SYNTH_MODEL. */
   synthModel?: string;
+  /**
+   * Sticky-by-repo serving for sample ("Try") repos: return the latest succeeded
+   * report for this repo regardless of HEAD, so an active repo's moving commit
+   * never forces a paid re-run. Falls through to a normal (seeding) run if none
+   * exists yet.
+   */
+  sticky?: boolean;
 };
 
 export type AnalyzeEvent =
@@ -90,6 +105,27 @@ export async function analyzeRepo(
   // SSRF guard + identifier validation happen here, before any I/O.
   const ref = parseRepoInput(input);
   const repo = `${ref.owner}/${ref.repo}`;
+
+  // Sticky sample serving: return the newest succeeded report for this repo as-is,
+  // skipping the SHA resolve + any model spend. Only when one already exists — a
+  // never-analyzed sample falls through to a normal run that seeds it.
+  if (opts.sticky) {
+    const latest = await latestSucceededByRepo(ref.owner, ref.repo, deps.db);
+    if (latest) {
+      const stored = await getReport(latest.id, deps.db);
+      if (stored) {
+        await emit({ type: 'phase', phase: 'done' });
+        return {
+          analysisId: latest.id,
+          commitSha: latest.commitSha,
+          report: stored.report as Report,
+          stats: null,
+          costMicroUsd: latest.costMicroUsd,
+          cached: true,
+        };
+      }
+    }
+  }
 
   await emit({ type: 'phase', phase: 'resolving' });
   const commitSha = await deps.resolveCommitSha(ref);
