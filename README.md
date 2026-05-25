@@ -4,7 +4,7 @@ Point it at a public GitHub repository and an agent explores the code with tools
 
 A first-pass code-understanding accelerant — it gets a human productive on an unfamiliar codebase in minutes, and shows its work.
 
-> Status: **pre-launch.** The analysis pipeline runs end-to-end via the CLI; the web surface and deploy are in progress. See [PROJECT.md](./PROJECT.md) for the full design and roadmap.
+> Status: **live** at [xray.zeroindex.ai](https://xray.zeroindex.ai). The full pipeline runs behind a streaming web UI. See [PROJECT.md](./PROJECT.md) for the design, the public API, and the roadmap (the main open item is moving the in-handler pipeline onto a durable workflow engine — §11).
 
 ## How it works
 

@@ -19,7 +19,7 @@ The bet is that an LLM with the right _tools and a budget_ — rather than a sin
 - **Agentic exploration, not whole-repo stuffing.** The model is given tools to navigate the repo and a bounded budget, and it decides what to read. This scales to repos far larger than a context window and mirrors how an engineer actually explores. _Rejected:_ dumping the repo into one prompt (doesn't scale, no provenance, expensive).
 - **Read via the GitHub API; never clone or execute.** The service fetches the git tree and file blobs on demand. It does not download the repo to disk or run any of its code, so there is no untrusted-execution surface to sandbox. _Rejected:_ tarball-to-temp (memory/time blowups on large repos) and code execution (unnecessary and unsafe).
 - **Two-phase pipeline: explore, then synthesize.** A cheaper model runs the many-call exploration loop and gathers cited evidence; a more capable model runs once to synthesize the report from that evidence. This puts the expensive model only where judgment is needed.
-- **Durable orchestration.** An exploration run is long and multi-step, so it runs as a durable, step-based workflow with per-step retries — a crash or timeout resumes rather than restarts (and re-spends).
+- **Built for durable orchestration.** An exploration run is long and multi-step, so the pipeline is structured as discrete steps (fetch → explore → synthesize → validate → persist) that a step-based workflow engine can make crash-resumable with per-step retries. _v0.1 runs these steps inline inside the streaming handler; the durability upgrade — resume-rather-than-restart (and re-spend) via WDK — is the headline roadmap item (§11)._
 - **Provenance is the product.** Every finding carries structured evidence (`path`, line range, quoted snippet). A deterministic post-step validates that each citation actually resolves to the quoted text before the report is shown; citations that don't resolve are dropped or flagged. "100% of citations resolve" is a metric we can state plainly.
 - **Cost and abuse control are first-class.** Each run spends real money on model calls, so: requests are SSRF-guarded to validated `github.com/owner/repo` targets only; runs are rate-limited per client and capped by a global daily spend ceiling; and results are cached by `(repo, commit SHA)` so the same commit is never analyzed twice.
 - **Observability built in.** Each run emits spans — tool calls, tokens, latency, and cost — to an external tracing endpoint, surfaced live to the user as the run streams.
@@ -30,7 +30,7 @@ Request → report:
 
 1. **Submit** `owner/repo` (+ optional ref). Validate and SSRF-guard the target, resolve it to a concrete commit SHA.
 2. **Cache check** — if `(repo, SHA)` was already analyzed, return the stored report immediately.
-3. **Run** a durable workflow:
+3. **Run** the pipeline — inline in the streaming handler today, a durable workflow on the roadmap (§11):
    - **fetch** — repo metadata, language breakdown, the full git tree, and a set of seed files (README, package/dependency manifest, CI config, likely entry points). Tree + seeds are cached into the model's first turn.
    - **explore** — a bounded tool loop. The agent calls `list_directory`, `read_file` (line-numbered, range-capped so a single huge file can't exhaust the budget), and `search`, accumulating cited evidence notes. Hard limits on tool calls, tokens, and wall-clock; on budget exhaustion it is told to stop and synthesize.
    - **synthesize** — one pass that turns the evidence into the structured report.
@@ -44,9 +44,8 @@ Request → report:
 
 ## 4. Public contract (v0.1)
 
-- `POST /api/analyze` `{ repo, ref? }` → `{ id, status, cached }`.
-- `GET /api/analyze/:id/stream` → SSE stream of run progress (tool calls, cost) until completion.
-- `GET /api/analyze/:id` → status, and the report JSON once ready.
+- `POST /api/analyze` `{ repo, ref? }` → a **Server-Sent Events** stream: `phase` and `explore` markers (tool calls + a running cost meter), then a final `report` event (or `error`). The cheap guards — body-size cap, SSRF validation, per-client rate limit, global daily budget — run _before_ the stream opens, so a rejection still returns a real 4xx/5xx; once streaming starts the HTTP status is locked at 200.
+- `GET /api/analyze/:id` → the stored analysis plus its report (`{ analysis, report, summary }`), or 404 if the id is unknown. Backs shareable report URLs and cached results. (Progress streams from the `POST` above — there is no separate stream endpoint.)
 
 **Report sections, in order (onboarding-led):**
 
