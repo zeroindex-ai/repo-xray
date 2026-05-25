@@ -43,7 +43,7 @@ export default async function AnalysisDetailPage({ params }: { params: Promise<{
       <section className="pt-10 pb-8">
         <div className="label mb-3">
           <Link href="/admin" className="subtle">
-            ← Admin
+            ← Admin • Repo X-Ray
           </Link>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
