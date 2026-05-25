@@ -70,7 +70,7 @@ export function parseRepoInput(input: string): RepoRef {
   if (!raw) throw new GitHubError('Empty repository reference');
 
   let rest = raw;
-  let ref: string | undefined;
+  let ref: RepoRef['ref'];
 
   // Strip a scheme + host if a URL was given, allowing only github.com.
   const urlMatch = rest.match(/^(?:https?:\/\/)?(?:www\.)?([^/]+)\/(.+)$/i);
@@ -78,7 +78,7 @@ export function parseRepoInput(input: string): RepoRef {
     // Looks like it carried a host (contains a dot, e.g. "github.com").
     const host = urlMatch[1]!.toLowerCase();
     if (host !== 'github.com') {
-      throw new GitHubError(`Only github.com repositories are supported (got "${host}")`);
+      throw new GitHubError(`Only github.com repository URLs are supported; rejected host "${host}"`);
     }
     rest = urlMatch[2]!;
   }

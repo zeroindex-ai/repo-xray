@@ -9,6 +9,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { addUsage, costMicroUsd, emptyUsageTotals, SONNET_4_6_PRICING, type UsageTotals } from './cost';
+import { buildMessageParams, type MessageRequest } from './messageParams';
 import { executeTool, renderTree, TOOLS, type EvidenceItem, type ToolDeps } from './tools';
 
 export const EXPLORE_MODEL = 'claude-sonnet-4-6';
@@ -133,19 +134,22 @@ export async function runExploration(opts: ExploreOptions): Promise<ExploreResul
     }
 
     iterations += 1;
-    // Typed base so model/max_tokens/system/tools/messages stay type-checked; the
-    // cast only loosens the merge to admit newer params (thinking/output_config).
-    const base: Anthropic.MessageCreateParamsNonStreaming = {
+    // Typed base + typed tuning defaults; `extraParams`, when given, replaces the
+    // tuning block via the wrapper. No cast at the call site.
+    const base: MessageRequest = {
       model,
       max_tokens: budget.maxTokensPerCall,
       system,
       tools,
       messages,
     };
-    const response = await opts.client.messages.create({
-      ...base,
-      ...(opts.extraParams ?? { thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } }),
-    } as Anthropic.MessageCreateParamsNonStreaming);
+    const response = await opts.client.messages.create(
+      buildMessageParams(
+        base,
+        { thinking: { type: 'adaptive' }, output_config: { effort: 'medium' } },
+        opts.extraParams
+      )
+    );
 
     usage = addUsage(usage, response.usage);
     const iterationCost = costMicroUsd(response.usage, SONNET_4_6_PRICING);
