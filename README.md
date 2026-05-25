@@ -11,8 +11,10 @@ A first-pass code-understanding accelerant — it gets a human productive on an 
 1. Resolve `owner/repo[@ref]` to a commit SHA (public repos only; the input is validated, never a raw URL handed to `fetch`).
 2. A bounded, prompt-cached tool-use loop (Sonnet) explores the repo — `list_directory`, `search`, `read_file` — under a hard tool-call/token/time budget, recording every file slice it reads as cited evidence.
 3. A synthesis pass (Opus) turns that evidence into a structured, onboarding-led report.
-4. A deterministic step re-reads every citation and drops any whose quote doesn't resolve — so 100% of shown citations are verifiable.
+4. A deterministic step re-reads every citation and drops any whose quote doesn't resolve — so 100% of shown citations are verifiable.[^ws]
 5. Results are cached by commit SHA (the same commit is never analyzed twice) and persisted with per-run cost and event history.
+
+[^ws]: "Resolve" is whitespace-tolerant: the match collapses runs of intra-line whitespace and trims each line (line breaks are preserved), so a re-indented or reflowed quote still resolves against the cited lines.
 
 ## Local development
 
