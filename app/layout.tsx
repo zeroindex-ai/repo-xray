@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { HeaderNav } from './HeaderNav';
 import './globals.css';
 
@@ -72,9 +73,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <footer className="border-t line py-10 text-sm">
             <div className="muted flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
               <div className="mono">&copy; 2026 ZeroIndex LLC &middot; Pennsylvania</div>
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                {/* prefetch={false}: prefetching /admin trips proxy.ts's 401 +
+                    WWW-Authenticate, popping a Basic-auth dialog. Fetch on click only. */}
+                <Link prefetch={false} className="subtle" href="/admin">
+                  Admin
+                </Link>
                 <a className="subtle" href="https://github.com/zeroindex-ai/repo-xray">
                   Source
+                </a>
+                <a className="subtle" href="mailto:hello@zeroindex.ai">
+                  hello@zeroindex.ai
                 </a>
                 <a className="subtle" href="https://zeroindex.ai">
                   zeroindex.ai
