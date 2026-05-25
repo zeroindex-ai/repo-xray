@@ -276,26 +276,25 @@ export default function Home() {
 
           {status === 'done' && result && (
             <div className="report-doc">
-              <div className="flex items-start justify-between gap-3 mb-8 no-print">
-                <div className="event-meta mono text-xs muted-2">
-                  <span>
-                    {result.repo}@{result.commitSha.slice(0, 8)}
-                  </span>
-                  <span className="meta-sep">&middot;</span>
-                  <span>{result.cached ? 'cached' : 'fresh'}</span>
-                  <span className="meta-sep">&middot;</span>
-                  <span>{usd(result.costMicroUsd)}</span>
-                  {result.stats && (
-                    <>
-                      <span className="meta-sep">&middot;</span>
-                      <span>
-                        {result.stats.citationsValid}/{result.stats.citationsChecked} citations resolved
-                      </span>
-                    </>
-                  )}
-                </div>
-                <button type="button" className="btn-ghost" onClick={() => window.print()}>
-                  Download PDF
+              <div className="event-meta mono text-xs muted-2 mb-8 no-print">
+                <span>
+                  {result.repo}@{result.commitSha.slice(0, 8)}
+                </span>
+                <span className="meta-sep">&middot;</span>
+                <span>{result.cached ? 'cached' : 'fresh'}</span>
+                <span className="meta-sep">&middot;</span>
+                <span>{usd(result.costMicroUsd)}</span>
+                {result.stats && (
+                  <>
+                    <span className="meta-sep">&middot;</span>
+                    <span>
+                      {result.stats.citationsValid}/{result.stats.citationsChecked} citations resolved
+                    </span>
+                  </>
+                )}
+                <span className="meta-sep">&middot;</span>
+                <button type="button" className="download-link" onClick={() => window.print()}>
+                  <span aria-hidden="true">&darr;</span> Download PDF
                 </button>
               </div>
               {/* Print-only header: the app chrome is hidden in the PDF, so stamp the

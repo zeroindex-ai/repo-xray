@@ -3,9 +3,11 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listAnalyses, type AnalysisStatus } from '@/db/analyses';
+import { latestSucceededByRepo, listAnalyses, type AnalysisStatus } from '@/db/analyses';
 import { db } from '@/db/client';
 import { fmtDuration, fmtTs, fmtUsd } from '@/lib/format';
+import { SAMPLE_REPOS } from '@/lib/samples';
+import { ResampleButton } from './ResampleButton';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // libsql is Node-only
@@ -43,11 +45,47 @@ export default async function AdminPage({
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + PAGE_SIZE, total);
 
+  // Sample ("Try") repos are served sticky-by-repo and never auto-refresh; surface
+  // their latest stored report + a Re-run control to re-seed against current HEAD.
+  const samples = await Promise.all(
+    SAMPLE_REPOS.map(async (full) => {
+      const [owner, repo] = full.split('/');
+      const latest = await latestSucceededByRepo(owner ?? '', repo ?? '', db());
+      return { full, latest };
+    })
+  );
+
   return (
     <>
       <section className="pt-10 pb-8">
         <div className="label mb-3">Admin • Repo X-Ray</div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Analyses</h1>
+      </section>
+
+      <section className="pt-2 pb-8">
+        <div className="label mb-3">Samples</div>
+        <div className="card">
+          <div className="flex flex-col gap-4">
+            {samples.map(({ full, latest }) => (
+              <div key={full} className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="mono">{full}</div>
+                  <div className="mono text-xs muted-2 mt-1">
+                    {latest ? (
+                      <>
+                        @{latest.commitSha.slice(0, 8)} &middot; {fmtTs(latest.createdAt)} &middot;{' '}
+                        {fmtUsd(latest.costMicroUsd)}
+                      </>
+                    ) : (
+                      'never analyzed — Re-run to seed'
+                    )}
+                  </div>
+                </div>
+                <ResampleButton repo={full} />
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="pt-2 pb-24">

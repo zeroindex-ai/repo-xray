@@ -743,6 +743,36 @@ code.chip {
   }
 }
 
+/* Inline "Download PDF" action — sits in the report's meta toolbar (mono/muted),
+   matching the surrounding metadata rather than floating as a separate button. */
+.download-link {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.download-link:hover {
+  color: var(--accent-1);
+}
+
+/* Admin: sample re-run control + its status note. */
+.resample {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.resample-msg {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+.resample-msg.is-error {
+  color: var(--error);
+}
+
 /* Shown only in the printed/PDF output (the app chrome is hidden there). */
 .print-only {
   display: none;
