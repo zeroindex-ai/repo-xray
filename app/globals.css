@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-/* Mirrors zeroindexai/STYLE_GUIDE.md §1 palette. Two dashboard-only additions
+/* Mirrors zeroindex-site/STYLE_GUIDE.md §1 palette. Two dashboard-only additions
    (--warn, --error) carry outcome-state semantics that the marketing palette
    has no need for. */
 :root {
