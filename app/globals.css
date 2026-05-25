@@ -266,6 +266,9 @@ code.chip {
   /* sticky header (~33px) + ~10 rows (~41px) + bottom padding */
   max-height: 455px;
   overflow-y: auto;
+  /* fixed-width grids exceed a phone's width — let them scroll sideways rather
+     than clip. Harmless on desktop (only engages when content overflows). */
+  overflow-x: auto;
   padding: 0 24px 8px;
 }
 .admin-table tbody td {
@@ -464,7 +467,8 @@ code.chip {
 .report-json {
   max-height: 480px;
   overflow-y: auto;
-  overflow-x: hidden;
+  /* auto (not hidden) so any non-wrapping token stays reachable on a phone */
+  overflow-x: auto;
   margin: 0;
   padding: 16px 18px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -661,6 +665,9 @@ code.chip {
   padding: 1px 6px;
   border-radius: 4px;
   transition: background 0.15s ease;
+  /* long file paths break instead of pushing the page wider than a phone */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .cite:hover {
   background: rgba(124, 58, 237, 0.14);
@@ -708,4 +715,30 @@ code.chip {
    section text; the "Summary" label is what distinguishes it. */
 .lead-card p {
   color: var(--muted);
+}
+
+/* ---- Mobile (<= 640px) --------------------------------------------------
+   Desktop-first views kept usable on phones: dense grids scroll sideways
+   (see .table-scroll), the key/value rail stacks, chrome padding tightens,
+   and tap targets grow to the ~44px touch minimum. */
+@media (max-width: 640px) {
+  .card {
+    padding: 18px 16px;
+  }
+  .table-scroll {
+    padding: 0 16px 8px;
+  }
+  /* a 180px label rail leaves no room for values on a phone — stack instead */
+  .kv-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .kv-list dt {
+    padding-top: 10px;
+  }
+  /* 34px is below the touch-target minimum; size up on phones */
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
 }
