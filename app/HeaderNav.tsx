@@ -23,7 +23,9 @@ export function HeaderNav({ appName }: { appName: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      <Link href="/admin" className="btn-ghost">
+      {/* prefetch={false}: prefetching /admin trips proxy.ts's 401 + WWW-Authenticate,
+          which pops a Basic-auth dialog on the public page. Only fetch on click. */}
+      <Link href="/admin" prefetch={false} className="btn-ghost">
         Admin
       </Link>
       <a href="https://zeroindex.ai" className="btn-primary">
