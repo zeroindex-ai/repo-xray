@@ -40,10 +40,24 @@ export default async function AdminPage({
     : 'all';
   const offset = (pageNum - 1) * PAGE_SIZE;
 
-  const { rows, total } = await listAnalyses(
-    { limit: PAGE_SIZE, offset, status: status as AnalysisStatus | 'all' },
-    db()
-  );
+  let result: Awaited<ReturnType<typeof listAnalyses>>;
+  try {
+    result = await listAnalyses({ limit: PAGE_SIZE, offset, status: status as AnalysisStatus | 'all' }, db());
+  } catch (e) {
+    // DIAGNOSTIC (temporary): /admin is auth-gated, so surface the real error +
+    // stack here instead of the omitted prod digest. Remove once the 500 is fixed.
+    const err = e as Error & { cause?: { name?: string; message?: string; stack?: string } };
+    console.error('ADMIN_DB_ERROR', err);
+    return (
+      <section className="pt-10 pb-24">
+        <div className="label mb-3">Admin diagnostic</div>
+        <pre className="raw-json" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          {`${err.name}: ${err.message}\ncause: ${err.cause?.name ?? ''}: ${err.cause?.message ?? String(err.cause)}\n\nstack:\n${err.stack ?? ''}\n\ncause.stack:\n${err.cause?.stack ?? '(none)'}`}
+        </pre>
+      </section>
+    );
+  }
+  const { rows, total } = result;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + PAGE_SIZE, total);
