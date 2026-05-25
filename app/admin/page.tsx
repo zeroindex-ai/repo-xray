@@ -8,6 +8,12 @@ import { db } from '@/db/client';
 import { fmtDuration, fmtTs, fmtUsd } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
+// Node runtime (libsql is Node-only) + no fetch caching: Next's fetch
+// instrumentation in the prod page render otherwise breaks libsql's POST to
+// Turso ("fetch failed: expected non-null body source"). The analyze route
+// works because it already pins runtime='nodejs'.
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 export const metadata: Metadata = { title: 'Repo X-Ray Admin · ZeroIndex' };
 
 const PAGE_SIZE = 50;

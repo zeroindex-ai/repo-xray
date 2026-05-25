@@ -11,6 +11,8 @@ import type { Report } from '@/report/schema';
 import { CopyButton } from '../CopyButton';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 export const metadata: Metadata = { title: 'Analysis · Repo X-Ray Admin · ZeroIndex' };
 
 // A compact one-line detail for a run event, by event type.
