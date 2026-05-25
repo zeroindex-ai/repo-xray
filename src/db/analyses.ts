@@ -94,6 +94,31 @@ export async function getOrCreateAnalysis(
   return { analysis, created: analysis.id === id };
 }
 
+export type ListAnalysesResult = { rows: Analysis[]; total: number };
+
+/** Recent analyses for the admin list, newest first, with an optional status filter. */
+export async function listAnalyses(
+  opts: { limit: number; offset: number; status?: AnalysisStatus | 'all' },
+  client: Conn = db()
+): Promise<ListAnalysesResult> {
+  const filtered = opts.status && opts.status !== 'all';
+  const whereSql = filtered ? 'WHERE status = ?' : '';
+  const filterArgs: InValue[] = filtered ? [opts.status as string] : [];
+
+  const totalRes = await client.execute({
+    sql: `SELECT COUNT(*) AS n FROM analyses ${whereSql}`,
+    args: filterArgs,
+  });
+  const total = Number((totalRes.rows[0] as Record<string, unknown>).n ?? 0);
+
+  const res = await client.execute({
+    // rowid (insertion order) breaks created_at ties so pagination is stable.
+    sql: `SELECT * FROM analyses ${whereSql} ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?`,
+    args: [...filterArgs, opts.limit, opts.offset],
+  });
+  return { rows: res.rows.map((r) => rowToAnalysis(r as Record<string, unknown>)), total };
+}
+
 export async function findByRepoSha(
   owner: string,
   repo: string,

@@ -8,13 +8,7 @@
 // the default `auto`, which avoids the thinking-vs-forced-tool_choice 400.
 
 import type Anthropic from '@anthropic-ai/sdk';
-import {
-  addUsage,
-  costMicroUsd,
-  emptyUsageTotals,
-  SONNET_4_6_PRICING,
-  type UsageTotals,
-} from './cost';
+import { addUsage, costMicroUsd, emptyUsageTotals, SONNET_4_6_PRICING, type UsageTotals } from './cost';
 import { executeTool, renderTree, TOOLS, type EvidenceItem, type ToolDeps } from './tools';
 
 export const EXPLORE_MODEL = 'claude-sonnet-4-6';
@@ -172,9 +166,7 @@ export async function runExploration(opts: ExploreOptions): Promise<ExploreResul
     }
 
     // Execute every tool_use block in this turn (the API requires a result for each).
-    const toolUses = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-    );
+    const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     await emit({ type: 'status', phase: 'iterating' });
 
     const results: Anthropic.ToolResultBlockParam[] = [];

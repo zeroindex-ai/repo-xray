@@ -22,7 +22,14 @@ export function clientKey(headers: Headers): string {
   const salt = process.env.RATE_LIMIT_SALT ?? '';
   const xff = headers.get('x-forwarded-for');
   const ip = xff ? (xff.split(',')[0]?.trim() ?? '') : '';
-  if (ip) return 'ip:' + createHash('sha256').update(salt + ip).digest('hex').slice(0, 16);
+  if (ip)
+    return (
+      'ip:' +
+      createHash('sha256')
+        .update(salt + ip)
+        .digest('hex')
+        .slice(0, 16)
+    );
   const ua = headers.get('user-agent') ?? '';
   const lang = headers.get('accept-language') ?? '';
   return 'fp:' + createHash('sha256').update(`${salt}${ua}\n${lang}`).digest('hex').slice(0, 16);

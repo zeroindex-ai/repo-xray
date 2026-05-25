@@ -333,6 +333,26 @@ code.chip {
   color: var(--muted-2);
 }
 
+/* analysis status tags (admin) — mono, color carries the state */
+.status-tag {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.status-succeeded {
+  color: var(--accent-go);
+}
+.status-failed {
+  color: var(--error);
+}
+.status-running {
+  color: var(--warn);
+}
+.status-queued {
+  color: var(--muted-2);
+}
+
 .filter-strip {
   display: flex;
   flex-wrap: wrap;
@@ -431,6 +451,68 @@ code.chip {
   margin: 0;
 }
 
+/* admin report JSON: a cream panel nested in the white card. The PANEL is the
+   rounded clipping frame (radius + overflow:hidden) and the inner <pre> does the
+   scrolling — keeping radius and the scrollbar on separate elements avoids the
+   squared-corner distortion. pre-wrap + break-anywhere kills the horizontal scroll. */
+.report-panel {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.report-json {
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 16px 18px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* square icon button (e.g. open-on-GitHub next to a heading) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.icon-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+/* Copy button — sits in the section header (in flow), clear of the scroll frame. */
+.copy-btn {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.copy-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
 /* ── repo-xray: submit form + run log + report ── */
 /* Input as a prefix-group: a fixed `github.com/` adornment + a bare input, so the
    base URL is always visible and "owner/repo" is the obvious thing to type. */
@@ -470,6 +552,29 @@ code.chip {
   color: var(--muted-2);
 }
 
+/* "Try" example pills — subtle bordered chips (matches the filter-strip aesthetic). */
+.example-chip {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.example-chip:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.example-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Dark gradient pill — canonical CTA (matches trace-pack). Used by the header
    back-link and the submit button; the disabled/cursor bits support the button. */
 .btn-primary {
@@ -498,6 +603,28 @@ code.chip {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Secondary header pill — outline, pairs with .btn-primary (e.g. the Admin link). */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.btn-ghost:hover {
+  border-color: var(--line-strong);
 }
 
 /* risk severity tag — outlined mono pill, color carries the level */

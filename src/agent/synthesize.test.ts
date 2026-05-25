@@ -11,13 +11,19 @@ const report: Report = {
       kind: 'overview',
       title: 'Overview',
       findings: [
-        { claim: 'It is a CLI', detail: 'bin entry present', evidence: [{ path: 'package.json', startLine: 1, endLine: 1, quote: '"bin"' }] },
+        {
+          claim: 'It is a CLI',
+          detail: 'bin entry present',
+          evidence: [{ path: 'package.json', startLine: 1, endLine: 1, quote: '"bin"' }],
+        },
       ],
     },
   ],
 };
 
-function clientReturning(text: string): MessagesClient & { calls: Anthropic.MessageCreateParamsNonStreaming[] } {
+function clientReturning(
+  text: string
+): MessagesClient & { calls: Anthropic.MessageCreateParamsNonStreaming[] } {
   const calls: Anthropic.MessageCreateParamsNonStreaming[] = [];
   return {
     calls,
@@ -32,7 +38,12 @@ function clientReturning(text: string): MessagesClient & { calls: Anthropic.Mess
           content: [{ type: 'text', text }],
           stop_reason: 'end_turn',
           stop_sequence: null,
-          usage: { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
         } as unknown as Anthropic.Message;
       },
     },

@@ -64,11 +64,20 @@ describe('renderTree', () => {
 
 describe('executeTool', () => {
   it('read_file returns line-numbered content and captures evidence', async () => {
-    const outcome = await executeTool('read_file', { path: 'README.md' }, deps(async () => slice()));
+    const outcome = await executeTool(
+      'read_file',
+      { path: 'README.md' },
+      deps(async () => slice())
+    );
     expect(outcome.content).toContain('README.md (lines 1-2 of 2)');
     expect(outcome.content).toContain('1\t# Title');
     expect(outcome.content).toContain('2\tHello');
-    expect(outcome.evidence).toEqual({ path: 'README.md', startLine: 1, endLine: 2, quote: '# Title\nHello' });
+    expect(outcome.evidence).toEqual({
+      path: 'README.md',
+      startLine: 1,
+      endLine: 2,
+      quote: '# Title\nHello',
+    });
   });
 
   it('read_file passes a line range through to the reader', async () => {
@@ -88,7 +97,9 @@ describe('executeTool', () => {
     const outcome = await executeTool(
       'read_file',
       { path: 'big.bin' },
-      deps(async () => slice({ path: 'big.bin', startLine: 0, endLine: 0, totalLines: 0, content: '', truncated: true }))
+      deps(async () =>
+        slice({ path: 'big.bin', startLine: 0, endLine: 0, totalLines: 0, content: '', truncated: true })
+      )
     );
     expect(outcome.content).toMatch(/too large or binary/);
     expect(outcome.evidence).toBeUndefined();
@@ -98,7 +109,9 @@ describe('executeTool', () => {
     const readFile = async (): Promise<FileSlice> => {
       throw new Error('should not read');
     };
-    expect((await executeTool('list_directory', { path: 'src' }, deps(readFile))).content).toBe('index.ts\nlib/');
+    expect((await executeTool('list_directory', { path: 'src' }, deps(readFile))).content).toBe(
+      'index.ts\nlib/'
+    );
     expect((await executeTool('search', { query: 'index' }, deps(readFile))).content).toBe('src/index.ts');
   });
 });

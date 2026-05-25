@@ -21,27 +21,23 @@ import type { MessagesClient } from './explore';
 const ENABLED = process.env.RUN_LIVE_SMOKE === '1' && !!process.env.ANTHROPIC_API_KEY;
 
 describe.skipIf(!ENABLED)('analyzeRepo (LIVE — opt-in, real API spend)', () => {
-  it(
-    'analyzes a tiny real repo end-to-end with a high citation-resolution rate',
-    async () => {
-      const db = createClient({ url: ':memory:' });
-      await migrate(db);
-      const anthropic = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY!,
-      }) as unknown as MessagesClient;
-      const deps = liveAnalyzeDeps({ anthropic, githubToken: process.env.GITHUB_TOKEN, db });
+  it('analyzes a tiny real repo end-to-end with a high citation-resolution rate', async () => {
+    const db = createClient({ url: ':memory:' });
+    await migrate(db);
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    }) as unknown as MessagesClient;
+    const deps = liveAnalyzeDeps({ anthropic, githubToken: process.env.GITHUB_TOKEN, db });
 
-      const result = await analyzeRepo('sindresorhus/is-plain-obj', deps);
+    const result = await analyzeRepo('sindresorhus/is-plain-obj', deps);
 
-      expect(result.cached).toBe(false);
-      expect(result.report.sections.length).toBeGreaterThan(0);
-      expect(result.costMicroUsd).toBeGreaterThan(0);
-      // The line-numbering fix should keep resolution high; this guards against
-      // regressions in the synthesis evidence format or GitHub line numbering.
-      const { citationsChecked, citationsValid } = result.stats!;
-      expect(citationsChecked).toBeGreaterThan(0);
-      expect(citationsValid / citationsChecked).toBeGreaterThanOrEqual(0.8);
-    },
-    180_000
-  );
+    expect(result.cached).toBe(false);
+    expect(result.report.sections.length).toBeGreaterThan(0);
+    expect(result.costMicroUsd).toBeGreaterThan(0);
+    // The line-numbering fix should keep resolution high; this guards against
+    // regressions in the synthesis evidence format or GitHub line numbering.
+    const { citationsChecked, citationsValid } = result.stats!;
+    expect(citationsChecked).toBeGreaterThan(0);
+    expect(citationsValid / citationsChecked).toBeGreaterThanOrEqual(0.8);
+  }, 180_000);
 });

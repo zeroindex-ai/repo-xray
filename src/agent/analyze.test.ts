@@ -15,13 +15,22 @@ const report: Report = {
       kind: 'overview',
       title: 'Overview',
       findings: [
-        { claim: 'It is a CLI', detail: 'README says so.', evidence: [{ path: 'README.md', startLine: 1, endLine: 1, quote: '# Acme CLI' }] },
+        {
+          claim: 'It is a CLI',
+          detail: 'README says so.',
+          evidence: [{ path: 'README.md', startLine: 1, endLine: 1, quote: '# Acme CLI' }],
+        },
       ],
     },
   ],
 };
 
-const usage = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+const usage = {
+  input_tokens: 100,
+  output_tokens: 20,
+  cache_creation_input_tokens: 0,
+  cache_read_input_tokens: 0,
+};
 
 function message(content: unknown[], stop_reason: string): Anthropic.Message {
   return {
@@ -50,8 +59,19 @@ function fakeClient(responses: Anthropic.Message[]): MessagesClient & { count: n
   return client;
 }
 
-const tree: RepoTree = { sha: 'sha1', truncated: false, entries: [{ path: 'README.md', type: 'blob', sha: 'a' }] };
-const slice: FileSlice = { path: 'README.md', startLine: 1, endLine: 1, totalLines: 1, content: '# Acme CLI', truncated: false };
+const tree: RepoTree = {
+  sha: 'sha1',
+  truncated: false,
+  entries: [{ path: 'README.md', type: 'blob', sha: 'a' }],
+};
+const slice: FileSlice = {
+  path: 'README.md',
+  startLine: 1,
+  endLine: 1,
+  totalLines: 1,
+  content: '# Acme CLI',
+  truncated: false,
+};
 
 // Explorer reads README, ends; synthesizer emits the report JSON.
 function happyResponses(): Anthropic.Message[] {

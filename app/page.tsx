@@ -212,13 +212,13 @@ export default function Home() {
             {status === 'running' ? 'Analyzing…' : 'Analyze'} <span aria-hidden="true">&rarr;</span>
           </button>
         </form>
-        <div className="mt-3 flex items-center gap-3">
-          <span className="mono text-xs muted-2">try</span>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <span className="label mr-1">Try</span>
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
               type="button"
-              className="inline-link mono text-xs"
+              className="example-chip"
               onClick={() => setRepo(ex)}
               disabled={status === 'running'}
             >

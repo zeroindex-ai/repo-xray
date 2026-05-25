@@ -154,10 +154,7 @@ export async function resolveCommitSha(ref: RepoRef, token?: string): Promise<st
   }
   // Preserve slashes in branch refs (e.g. feature/x) while encoding each segment.
   const encodedRef = target.split('/').map(encodeURIComponent).join('/');
-  const commit = await gh<{ sha: string }>(
-    `/repos/${owner}/${repo}/commits/${encodedRef}`,
-    token
-  );
+  const commit = await gh<{ sha: string }>(`/repos/${owner}/${repo}/commits/${encodedRef}`, token);
   return commit.sha;
 }
 

@@ -9,6 +9,7 @@ import {
   getEvents,
   getOrCreateAnalysis,
   getReport,
+  listAnalyses,
   saveReport,
   setStatus,
 } from './analyses';
@@ -120,5 +121,39 @@ describe('report storage', () => {
     const got = await getReport(analysis.id, client);
     expect(got?.report).toEqual({ v: 2 });
     expect(got?.summary).toBe('updated');
+  });
+});
+
+describe('listAnalyses', () => {
+  async function seed(n: number, status?: 'succeeded' | 'failed') {
+    const { analysis } = await getOrCreateAnalysis({ ...base, commitSha: `sha-${n}` }, client);
+    if (status) await setStatus(analysis.id, status, {}, client);
+    return analysis.id;
+  }
+
+  it('returns rows newest-first with a total count', async () => {
+    await seed(1);
+    await seed(2);
+    const { rows, total } = await listAnalyses({ limit: 50, offset: 0 }, client);
+    expect(total).toBe(2);
+    expect(rows.map((r) => r.commitSha)).toEqual(['sha-2', 'sha-1']); // created_at DESC
+  });
+
+  it('filters by status and counts only the filtered set', async () => {
+    await seed(1, 'succeeded');
+    await seed(2, 'failed');
+    await seed(3, 'succeeded');
+    const { rows, total } = await listAnalyses({ limit: 50, offset: 0, status: 'succeeded' }, client);
+    expect(total).toBe(2);
+    expect(rows.every((r) => r.status === 'succeeded')).toBe(true);
+  });
+
+  it('paginates via limit + offset', async () => {
+    for (let i = 1; i <= 3; i++) await seed(i);
+    const page1 = await listAnalyses({ limit: 2, offset: 0 }, client);
+    const page2 = await listAnalyses({ limit: 2, offset: 2 }, client);
+    expect(page1.rows).toHaveLength(2);
+    expect(page2.rows).toHaveLength(1);
+    expect(page1.total).toBe(3);
   });
 });

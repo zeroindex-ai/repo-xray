@@ -47,7 +47,11 @@ export const TOOLS: Anthropic.Tool[] = [
       properties: {
         path: { type: 'string', description: 'File path relative to the repository root.' },
         start_line: { type: 'integer', description: '1-based first line to read (optional).', minimum: 1 },
-        end_line: { type: 'integer', description: '1-based last line to read, inclusive (optional).', minimum: 1 },
+        end_line: {
+          type: 'integer',
+          description: '1-based last line to read, inclusive (optional).',
+          minimum: 1,
+        },
       },
       required: ['path'],
     },

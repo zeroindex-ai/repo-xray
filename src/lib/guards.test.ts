@@ -51,10 +51,7 @@ describe('checkDailyCap', () => {
 describe('checkGlobalDailyBudget', () => {
   it('allows under the ceiling and blocks at/over it', async () => {
     const now = () => Date.parse('2026-05-22T12:00:00Z');
-    const { analysis } = await getOrCreateAnalysis(
-      { owner: 'a', repo: 'b', commitSha: 's' },
-      db
-    );
+    const { analysis } = await getOrCreateAnalysis({ owner: 'a', repo: 'b', commitSha: 's' }, db);
     // ceiling $1 = 1,000,000 µ$. Spend 600,000 → still allowed.
     await addCost(analysis.id, 600_000, db);
     expect((await checkGlobalDailyBudget(1, { now, client: db })).allowed).toBe(true);

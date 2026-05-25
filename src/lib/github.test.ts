@@ -92,10 +92,7 @@ describe('resolveCommitSha', () => {
   });
 
   it('looks up the default branch when no ref is given', async () => {
-    const spy = mockFetch([
-      jsonResponse({ default_branch: 'trunk' }),
-      jsonResponse({ sha: 'def456' }),
-    ]);
+    const spy = mockFetch([jsonResponse({ default_branch: 'trunk' }), jsonResponse({ sha: 'def456' })]);
     const sha = await resolveCommitSha(ref);
     expect(sha).toBe('def456');
     expect(spy.mock.calls[0]![0]).toBe('https://api.github.com/repos/acme/widget');
@@ -172,9 +169,7 @@ describe('gh error handling', () => {
   });
 
   it('hints at the token when rate-limited', async () => {
-    mockFetch([
-      new Response('rate limited', { status: 403, headers: { 'x-ratelimit-remaining': '0' } }),
-    ]);
+    mockFetch([new Response('rate limited', { status: 403, headers: { 'x-ratelimit-remaining': '0' } })]);
     await expect(resolveCommitSha(ref)).rejects.toThrow(/set GITHUB_TOKEN/);
   });
 });

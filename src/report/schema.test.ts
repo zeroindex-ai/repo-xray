@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  REPORT_JSON_SCHEMA,
-  ReportSchema,
-  SECTION_KINDS,
-  SEVERITIES,
-  type Report,
-} from './schema';
+import { REPORT_JSON_SCHEMA, ReportSchema, SECTION_KINDS, SEVERITIES, type Report } from './schema';
 
 const sample: Report = {
   summary: 'A small CLI tool.',
@@ -14,7 +8,11 @@ const sample: Report = {
       kind: 'overview',
       title: 'Overview',
       findings: [
-        { claim: 'It is a CLI', detail: 'Has a bin entry.', evidence: [{ path: 'package.json', startLine: 3, endLine: 3, quote: '"bin": "cli.js"' }] },
+        {
+          claim: 'It is a CLI',
+          detail: 'Has a bin entry.',
+          evidence: [{ path: 'package.json', startLine: 3, endLine: 3, quote: '"bin": "cli.js"' }],
+        },
       ],
     },
     {
