@@ -38,6 +38,44 @@ jobs:
           fi
           pnpm eval
 
+      # Publish only the canonical (default-Opus) run to the public dashboard;
+      # an A/B dispatch (synth_model set) must not clobber it. No-op without the
+      # EVALS_SITE_TOKEN PAT (Contents: Read+Write on zeroindex-ai/evals-site).
+      - name: Publish to evals-site
+        if: ${{ success() && github.event_name != 'pull_request' && inputs.synth_model == '' }}
+        env:
+          EVALS_SITE_TOKEN: ${{ secrets.EVALS_SITE_TOKEN }}
+        run: |
+          if [ -z "$EVALS_SITE_TOKEN" ]; then
+            echo "EVALS_SITE_TOKEN not set; skipping publish."
+            exit 0
+          fi
+          RESULT=$(ls -t evals/results/run-*.json 2>/dev/null | head -1)
+          if [ -z "$RESULT" ]; then
+            echo "No eval result to publish (eval likely skipped)."
+            exit 0
+          fi
+          git clone --depth 1 \
+            "https://x-access-token:${EVALS_SITE_TOKEN}@github.com/zeroindex-ai/evals-site.git" /tmp/evals-site
+          cd /tmp/evals-site
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p artifacts/repo-xray public/repo-xray
+          cp "$GITHUB_WORKSPACE/$RESULT" artifacts/repo-xray/
+          pnpm install --frozen-lockfile
+          pnpm render \
+            --in "artifacts/repo-xray/$(basename "$RESULT")" \
+            --out public/repo-xray/latest.html \
+            --project repo-xray \
+            --threshold 0.8
+          git add public/repo-xray/latest.html
+          if git diff --staged --quiet; then
+            echo "No HTML change; nothing to publish."
+            exit 0
+          fi
+          git commit -m "publish: repo-xray eval (from run ${GITHUB_RUN_ID})"
+          git push origin main
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
