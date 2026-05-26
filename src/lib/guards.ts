@@ -66,7 +66,17 @@ export async function checkDailyCap(
 
 export type BudgetResult = { allowed: boolean; spentMicroUsd: number; ceilingMicroUsd: number };
 
-/** Global daily spend ceiling — sum of today's analysis cost across all clients. */
+// A run's estimated cost, reserved up-front so concurrent runs can't each pass a
+// stale "still under budget" read and collectively overshoot. ~$0.40/run is the
+// observed first-pass cost; reconciled to the real spend after the run.
+export const RESERVATION_MICRO_USD = Number(process.env.ANALYZE_RESERVATION_MICRO_USD) || 400_000;
+
+/**
+ * Cheap, non-reserving budget read — sum of today's analysis cost across all
+ * clients vs. the ceiling. Used as a fast fail-fast before the SSE stream opens
+ * (so a clearly over-budget request still gets a real 503). It is NOT the
+ * authoritative gate under concurrency — reserveGlobalDailyBudget is. See §3.
+ */
 export async function checkGlobalDailyBudget(
   ceilingUsd = Number(process.env.GLOBAL_DAILY_USD_CEILING) || DEFAULT_GLOBAL_DAILY_USD,
   opts: { now?: () => number; client?: Conn } = {}
@@ -81,4 +91,56 @@ export async function checkGlobalDailyBudget(
   const spentMicroUsd = Number((res.rows[0] as Record<string, unknown>).total);
   const ceilingMicroUsd = Math.round(ceilingUsd * 1_000_000);
   return { allowed: spentMicroUsd < ceilingMicroUsd, spentMicroUsd, ceilingMicroUsd };
+}
+
+/**
+ * Atomic budget *reservation* — the authoritative global-ceiling gate. Closes the
+ * check-then-spend TOCTOU: a single UPDATE writes this run's estimated cost onto
+ * its own `analyses` row, but only if today's total spend across *every other*
+ * row plus the estimate still fits under the ceiling. The guard lives in the
+ * WHERE clause, so N concurrent runs serialize on the row write and can't all
+ * pass a stale "under budget" read — mirroring the rate limiter's guarded UPSERT.
+ *
+ * `cost_micro_usd` is part of the daily SUM, so a successful reservation is
+ * immediately visible to every other run's check. After the run, the orchestrator
+ * reconciles the placeholder down to the real spend with analyses.setCost.
+ * RETURNING is empty ⇒ the reservation was denied.
+ */
+export async function reserveGlobalDailyBudget(
+  analysisId: string,
+  estimateMicroUsd = RESERVATION_MICRO_USD,
+  ceilingUsd = Number(process.env.GLOBAL_DAILY_USD_CEILING) || DEFAULT_GLOBAL_DAILY_USD,
+  opts: { now?: () => number; client?: Conn } = {}
+): Promise<BudgetResult> {
+  const now = opts.now ?? Date.now;
+  const c = opts.client ?? db();
+  const startOfDay = Date.parse(`${utcDay(now())}T00:00:00Z`);
+  const ceilingMicroUsd = Math.round(ceilingUsd * 1_000_000);
+  const estimate = Math.round(estimateMicroUsd);
+
+  // Reserve only if (today's spend on all OTHER rows) + this estimate < ceiling.
+  const res = await c.execute({
+    sql: `UPDATE analyses
+          SET cost_micro_usd = :estimate, updated_at = unixepoch() * 1000
+          WHERE id = :id
+            AND (
+              (SELECT COALESCE(SUM(cost_micro_usd), 0) FROM analyses
+                 WHERE created_at >= :startOfDay AND id <> :id) + :estimate < :ceiling
+            )
+          RETURNING (SELECT COALESCE(SUM(cost_micro_usd), 0) FROM analyses WHERE created_at >= :startOfDay) AS total`,
+    args: { id: analysisId, estimate, startOfDay, ceiling: ceilingMicroUsd },
+  });
+  const row = res.rows[0] as Record<string, unknown> | undefined;
+  if (row) return { allowed: true, spentMicroUsd: Number(row.total), ceilingMicroUsd };
+
+  // Denied: report the current total (reservation not written).
+  const cur = await c.execute({
+    sql: 'SELECT COALESCE(SUM(cost_micro_usd), 0) AS total FROM analyses WHERE created_at >= ?',
+    args: [startOfDay],
+  });
+  return {
+    allowed: false,
+    spentMicroUsd: Number((cur.rows[0] as Record<string, unknown>).total),
+    ceilingMicroUsd,
+  };
 }
