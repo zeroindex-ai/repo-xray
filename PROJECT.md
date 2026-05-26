@@ -21,7 +21,7 @@ The bet is that an LLM with the right _tools and a budget_ — rather than a sin
 - **Two-phase pipeline: explore, then synthesize.** A cheaper model runs the many-call exploration loop and gathers cited evidence; a more capable model runs once to synthesize the report from that evidence. This puts the expensive model only where judgment is needed.
 - **Designed for durable orchestration (roadmap).** An exploration run is long and multi-step, so the pipeline is structured as discrete steps (fetch → explore → synthesize → validate → persist) that a step-based workflow engine can make crash-resumable with per-step retries. _v0.1 runs these steps inline inside the streaming handler; the durability upgrade — resume-rather-than-restart (and re-spend) via WDK — is the headline roadmap item (§11)._
 - **Provenance is the product.** Every finding carries structured evidence (`path`, line range, quoted snippet). A deterministic post-step validates that each citation actually resolves to the quoted text before the report is shown; citations that don't resolve are dropped or flagged. "100% of citations resolve" is a metric we can state plainly.
-- **Cost and abuse control are first-class.** Each run spends real money on model calls, so: requests are SSRF-guarded to validated `github.com/owner/repo` targets only; runs are rate-limited per client and capped by a global daily spend ceiling; and results are cached by `(repo, commit SHA)` so the same commit is never analyzed twice.
+- **Cost and abuse control are first-class.** Each run spends real money on model calls, so: requests are SSRF-guarded to validated `github.com/owner/repo` targets only; runs are rate-limited per client and capped by a global daily spend ceiling — enforced via an **atomic up-front reservation** (a single guarded `UPDATE` writes the run's estimated cost onto its row only if the day's total still fits under the ceiling, then reconciles to real spend after the run), so concurrent submissions can't each pass a stale "under budget" read and collectively overshoot; and results are cached by `(repo, commit SHA)` so the same commit is never analyzed twice.
 - **Observability built in.** Each run emits spans — tool calls, tokens, latency, and cost — to an external tracing endpoint, surfaced live to the user as the run streams.
 
 ## 3. Architecture
@@ -44,8 +44,8 @@ Request → report:
 
 ## 4. Public contract (v0.1)
 
-- `POST /api/analyze` `{ repo, ref? }` → a **Server-Sent Events** stream: `phase` and `explore` markers (tool calls + a running cost meter), then a final `report` event (or `error`). The cheap guards — body-size cap, SSRF validation, per-client rate limit, global daily budget — run _before_ the stream opens, so a rejection still returns a real 4xx/5xx; once streaming starts the HTTP status is locked at 200.
-- `GET /api/analyze/:id` → the stored analysis plus its report (`{ analysis, report, summary }`), or 404 if the id is unknown. Backs shareable report URLs and cached results. (Progress streams from the `POST` above — there is no separate stream endpoint.)
+- `POST /api/analyze` `{ repo, ref? }` → a **Server-Sent Events** stream: `phase` and `explore` markers (tool calls + a running cost meter), then a final `report` event (or `error`). The cheap guards — body-size cap, SSRF validation, per-client rate limit, and a fast-fail global-budget read — run _before_ the stream opens, so a clearly-rejected request still returns a real 4xx/5xx; once streaming starts the HTTP status is locked at 200. The **authoritative** global-budget gate is the atomic reservation inside the pipeline (§2); if it denies a run under concurrency the rejection arrives as an SSE `error` event.
+- `GET /api/analyze/:id` → the stored analysis plus its report (`{ analysis, report, summary }`), or 404 if the id is unknown. Backs shareable report URLs and cached results. As a public, unauthenticated endpoint it never returns the internal `error` string — a failed analysis surfaces a generic `"Analysis unavailable"`; the raw detail is logged server-side and visible only in the owner-only admin console. (Progress streams from the `POST` above — there is no separate stream endpoint.)
 
 **Report sections, in order (onboarding-led):**
 
@@ -72,7 +72,7 @@ Deliberately out of scope to keep the first version focused on the agent core:
 
 ## Risks / watch-items
 
-- **Cost** — the per-run budget, global daily ceiling, and SHA-dedupe cache are load-bearing, not optional.
+- **Cost** — the per-run budget, global daily ceiling (atomic reservation, §2), and SHA-dedupe cache are load-bearing, not optional. Known residual: the SHA cache short-circuits only *finished* runs, so two near-simultaneous submits of the same *uncached* commit can each run the full paid pipeline (the global reservation still bounds the day's total spend; the per-commit double-spend is the gap). In-flight (`status==='running'`) dedupe is a roadmap item (Work list).
 - **Large repos** — the agent must prioritize ruthlessly; the budget stop is what guarantees termination.
 - **GitHub rate limits** — needs a token for any real throughput.
 - **Citation drift** — the deterministic validation step is what keeps "every claim is cited" honest.
@@ -90,6 +90,8 @@ Ordered, not calendared.
 - [x] Synthesis pass (Opus 4.7) → strict report schema (Zod + wire JSON-schema; sections + cited findings). _(unit-tested with a mocked model)_
 - [x] Deterministic citation-validation step (re-reads each cited range, prunes unresolved citations + evidence-less findings).
 - [ ] Durable workflow wiring (fetch → explore → synthesize → validate → persist) with retries. _(v0.1 runs the pipeline inside the SSE handler; WDK is the durability upgrade)_
+- [ ] In-flight dedupe: short-circuit a concurrent submit of the same *uncached* commit onto the already-`running` analysis instead of starting a second paid pipeline. _(v0.1 dedupes only finished runs; the global reservation still bounds total daily spend — see Risks)_
+- [ ] Content `search` (the agent's `search` tool currently matches file paths only, not file contents) and OSV dependency scanning — both v0.2.
 - [x] API: `POST /api/analyze` (SSE stream of phase/tool/cost events → final report) + `GET /api/analyze/:id` (stored report).
 - [x] Report UI consuming the SSE stream (live progress + cost meter) with citation links; completed reports survive a refresh.
 - [x] Cost/abuse guards: per-client daily cap + global daily $ ceiling (`src/lib/guards.ts`); SHA-dedupe cache (already in the orchestrator). SSRF guard in github.ts.

@@ -183,6 +183,20 @@ export async function addCost(id: string, microUsd: number, client: Conn = db())
   });
 }
 
+/**
+ * Overwrite the running cost of an analysis (micro-USD; integer). Used to
+ * reconcile a budget *reservation* (a placeholder estimate written at run start)
+ * down to the real spend once the run finishes. See guards.reserveGlobalDailyBudget.
+ */
+export async function setCost(id: string, microUsd: number, client: Conn = db()): Promise<void> {
+  await client.execute({
+    sql: `UPDATE analyses
+          SET cost_micro_usd = :cost, updated_at = unixepoch() * 1000
+          WHERE id = :id`,
+    args: { id, cost: Math.round(microUsd) },
+  });
+}
+
 /** Append an ordered run event; returns its sequence number. */
 export async function appendEvent(
   analysisId: string,

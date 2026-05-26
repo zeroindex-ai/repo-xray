@@ -15,14 +15,15 @@ import {
   type RepoTree,
 } from '../lib/github';
 import {
-  addCost,
   appendEvent,
   getOrCreateAnalysis,
   getReport,
   latestSucceededByRepo,
   saveReport,
+  setCost,
   setStatus,
 } from '../db/analyses';
+import { reserveGlobalDailyBudget } from '../lib/guards';
 import type { Report } from '../report/schema';
 import { validateReport, type ValidationStats } from '../report/validate';
 import { type Budget, type ExploreEvent, type MessagesClient, runExploration } from './explore';
@@ -51,7 +52,25 @@ export type AnalyzeOptions = {
    * exists yet.
    */
   sticky?: boolean;
+  /**
+   * Enforce the global daily $ ceiling via an atomic reservation before any paid
+   * model call (default: true). The reservation writes an estimated cost onto the
+   * run's row only if the day's total still fits under the ceiling, closing the
+   * check-then-spend race; the real spend is reconciled after the run. Disable
+   * only for tests that don't exercise the budget path.
+   */
+  enforceBudget?: boolean;
+  /** Override the now() used for the budget reservation's UTC-day window (tests). */
+  budgetNow?: () => number;
 };
+
+/** Thrown when a run is denied by the global daily budget reservation. */
+export class BudgetExceededError extends Error {
+  constructor(public readonly spentMicroUsd: number, public readonly ceilingMicroUsd: number) {
+    super('Service is over its daily budget. Please try again tomorrow.');
+    this.name = 'BudgetExceededError';
+  }
+}
 
 export type AnalyzeEvent =
   | { type: 'phase'; phase: 'resolving' | 'fetching' | 'exploring' | 'synthesizing' | 'validating' | 'done' }
@@ -155,6 +174,29 @@ export async function analyzeRepo(
   const reader = (path: string, start?: number, end?: number) =>
     deps.readFile(ref, commitSha, path, start, end);
 
+  // Atomic budget reservation (default on): write an estimated cost onto this run's
+  // row, but only if today's total still fits under the global ceiling. This is the
+  // authoritative gate — it closes the check-then-spend race that a bare SUM read
+  // (checkGlobalDailyBudget) can't. Reconciled to the real spend below.
+  let reserved = false;
+  // Tracks real spend reconciled onto the row so far. While this is still the
+  // reserved estimate (0 recorded), a failure should release the reservation;
+  // once real cost is recorded, the row already holds the true spend.
+  let recordedMicroUsd = 0;
+  if (opts.enforceBudget !== false) {
+    const reservation = await reserveGlobalDailyBudget(id, undefined, undefined, {
+      now: opts.budgetNow,
+      client: deps.db,
+    });
+    if (!reservation.allowed) {
+      // Never ran ⇒ release the row (mark failed, zero cost) and reject.
+      await setCost(id, 0, deps.db);
+      await setStatus(id, 'failed', { error: 'over daily budget' }, deps.db);
+      throw new BudgetExceededError(reservation.spentMicroUsd, reservation.ceilingMicroUsd);
+    }
+    reserved = true;
+  }
+
   try {
     await setStatus(id, 'running', {}, deps.db);
 
@@ -186,7 +228,10 @@ export async function analyzeRepo(
         await emit({ type: 'explore', event });
       },
     });
-    await addCost(id, exploration.costMicroUsd, deps.db);
+    // Reconcile the reservation down to real spend as it accrues. setCost (not
+    // addCost) so we overwrite the placeholder estimate rather than stack on it.
+    recordedMicroUsd = exploration.costMicroUsd;
+    await setCost(id, recordedMicroUsd, deps.db);
 
     await emit({ type: 'phase', phase: 'synthesizing' });
     const synth = await synthesizeReport({
@@ -197,7 +242,8 @@ export async function analyzeRepo(
       evidence: exploration.evidence,
       model: opts.synthModel,
     });
-    await addCost(id, synth.costMicroUsd, deps.db);
+    recordedMicroUsd = exploration.costMicroUsd + synth.costMicroUsd;
+    await setCost(id, recordedMicroUsd, deps.db);
 
     await emit({ type: 'phase', phase: 'validating' });
     const validated = await validateReport(synth.report, reader);
@@ -220,6 +266,11 @@ export async function analyzeRepo(
       },
     };
   } catch (err) {
+    // Release the unspent part of the reservation: reconcile the row down to the
+    // real spend recorded so far. If we failed before any model call (e.g. the
+    // oversize-repo gate), recordedMicroUsd is 0 and the row's $0.40 placeholder
+    // is freed so a doomed run doesn't hold budget headroom hostage.
+    if (reserved) await setCost(id, recordedMicroUsd, deps.db);
     await setStatus(id, 'failed', { error: (err as Error).message }, deps.db);
     throw err;
   }
