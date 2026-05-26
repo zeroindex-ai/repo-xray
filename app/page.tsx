@@ -292,8 +292,7 @@ export default function Home() {
                     </span>
                   </>
                 )}
-                <span className="meta-sep">&middot;</span>
-                <button type="button" className="download-link" onClick={() => window.print()}>
+                <button type="button" className="download-link ml-1" onClick={() => window.print()}>
                   <span aria-hidden="true">&darr;</span> Download PDF
                 </button>
               </div>

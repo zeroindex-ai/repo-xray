@@ -743,19 +743,52 @@ code.chip {
   }
 }
 
-/* Inline "Download PDF" action — sits in the report's meta toolbar (mono/muted),
-   matching the surrounding metadata rather than floating as a separate button. */
+/* "Download PDF" action — a small outline pill in the report's meta toolbar
+   (mono/muted, matching .example-chip), keeping its inline placement + size. */
 .download-link {
   font: inherit;
   color: var(--muted);
-  background: none;
-  border: none;
-  padding: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 12px;
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .download-link:hover {
-  color: var(--accent-1);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* Admin: collapsed "Sample reports" disclosure — occasional re-run controls,
+   kept out of the way of the Analyses view (closed by default). */
+.samples-pane {
+  margin-top: 32px;
+}
+.samples-pane > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+.samples-pane > summary::-webkit-details-marker {
+  display: none;
+}
+.samples-pane > summary::before {
+  content: '▸ ';
+  color: var(--muted-2);
+}
+.samples-pane[open] > summary::before {
+  content: '▾ ';
+}
+.samples-pane > summary:hover {
+  color: var(--ink);
 }
 
 /* Admin: sample re-run control + its status note. */

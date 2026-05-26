@@ -62,32 +62,6 @@ export default async function AdminPage({
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Analyses</h1>
       </section>
 
-      <section className="pt-2 pb-8">
-        <div className="label mb-3">Samples</div>
-        <div className="card">
-          <div className="flex flex-col gap-4">
-            {samples.map(({ full, latest }) => (
-              <div key={full} className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="mono">{full}</div>
-                  <div className="mono text-xs muted-2 mt-1">
-                    {latest ? (
-                      <>
-                        @{latest.commitSha.slice(0, 8)} &middot; {fmtTs(latest.createdAt)} &middot;{' '}
-                        {fmtUsd(latest.costMicroUsd)}
-                      </>
-                    ) : (
-                      'never analyzed — Re-run to seed'
-                    )}
-                  </div>
-                </div>
-                <ResampleButton repo={full} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="pt-2 pb-24">
         <div className="filter-strip">
           {STATUS_FILTERS.map((s) =>
@@ -170,6 +144,36 @@ export default async function AdminPage({
             )}
           </div>
         )}
+
+        {/* Samples: occasional re-run of the pre-cached "Try" reports. Tucked into a
+            collapsed disclosure (closed by default) so it doesn't crowd Analyses. */}
+        <details className="samples-pane">
+          <summary>
+            Sample reports <span className="muted-2">— re-run the pre-cached Try repos</span>
+          </summary>
+          <div className="card mt-3">
+            <div className="flex flex-col gap-4">
+              {samples.map(({ full, latest }) => (
+                <div key={full} className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="mono">{full}</div>
+                    <div className="mono text-xs muted-2 mt-1">
+                      {latest ? (
+                        <>
+                          @{latest.commitSha.slice(0, 8)} &middot; {fmtTs(latest.createdAt)} &middot;{' '}
+                          {fmtUsd(latest.costMicroUsd)}
+                        </>
+                      ) : (
+                        'never analyzed — Re-run to seed'
+                      )}
+                    </div>
+                  </div>
+                  <ResampleButton repo={full} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </details>
       </section>
     </>
   );
