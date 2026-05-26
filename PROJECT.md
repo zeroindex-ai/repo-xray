@@ -96,7 +96,7 @@ Ordered, not calendared.
 - [x] Span emission to the external tracing endpoint (one event per analysis; env-gated, fire-and-forget).
 - [x] Eval set: golden repos + onboarding-quality LLM judge + deterministic citation-resolution check (`evals/`, via `@zeroindex-ai/eval-pack`). Synthesis model is a configurable dimension — see the model A/B below.
 - [x] Deploy to `xray.zeroindex.ai`.
-- [ ] Admin view.
+- [x] Admin view — analyses list + per-analysis drill-down (stored report JSON, cost, cited findings) behind owner-only basic auth.
 
 ### Synthesis model: Sonnet vs Opus (eval, 2026-05-24)
 
