@@ -42,7 +42,21 @@ export type AnalyzeDeps = {
 
 export type AnalyzeOptions = {
   budget?: Partial<Budget>;
-  onEvent?: (event: AnalyzeEvent) => void | Promise<void>;
+  /**
+   * Per-event callback. `seq` is the run_events sequence number the event was
+   * persisted under (once the analysis row exists), so the SSE layer can stamp
+   * each frame with an `id:` the client uses as the reconnect cursor (afterSeq).
+   * It is undefined for pre-row events (e.g. the initial 'resolving' phase).
+   */
+  onEvent?: (event: AnalyzeEvent, seq?: number) => void | Promise<void>;
+  /**
+   * Called once with the analysis id the moment the run's row is established (and
+   * event persistence begins). Lets the SSE layer tell the client its id EARLY —
+   * before any terminal event — so a dropped connection can reconnect to
+   * GET /api/analyze/:id/events and resume. Not called on the sticky/cache short
+   * path (no live run to reconnect to).
+   */
+  onStart?: (analysisId: string) => void | Promise<void>;
   /** Override the synthesis model (e.g. the Sonnet-vs-Opus eval). Defaults to SYNTH_MODEL. */
   synthModel?: string;
   /**
@@ -66,15 +80,34 @@ export type AnalyzeOptions = {
 
 /** Thrown when a run is denied by the global daily budget reservation. */
 export class BudgetExceededError extends Error {
-  constructor(public readonly spentMicroUsd: number, public readonly ceilingMicroUsd: number) {
+  constructor(
+    public readonly spentMicroUsd: number,
+    public readonly ceilingMicroUsd: number
+  ) {
     super('Service is over its daily budget. Please try again tomorrow.');
     this.name = 'BudgetExceededError';
   }
 }
 
+// The `report` and `error` events are TERMINAL: emitting one ends the run. They
+// carry the same payloads the SSE client consumes (report = the full result
+// envelope; error = a sanitized message) and are persisted to run_events so a
+// reconnecting/attaching client replays the run to its real conclusion.
+export type ReportEventPayload = {
+  analysisId: string;
+  repo: string;
+  commitSha: string;
+  cached: boolean;
+  costMicroUsd: number;
+  stats: ValidationStats | null;
+  report: Report;
+};
+
 export type AnalyzeEvent =
   | { type: 'phase'; phase: 'resolving' | 'fetching' | 'exploring' | 'synthesizing' | 'validating' | 'done' }
-  | { type: 'explore'; event: ExploreEvent };
+  | { type: 'explore'; event: ExploreEvent }
+  | { type: 'report'; report: ReportEventPayload }
+  | { type: 'error'; message: string };
 
 export type AnalyzeResult = {
   analysisId: string;
@@ -117,8 +150,28 @@ export async function analyzeRepo(
   deps: AnalyzeDeps,
   opts: AnalyzeOptions = {}
 ): Promise<AnalyzeResult> {
+  // Once the analysis row exists, every emitted event is also persisted to
+  // run_events in the SAME shape the SSE client parses — so a reconnecting or
+  // late-attaching client replaying run_events sees byte-identical events to the
+  // original live stream. `data` mirrors the POST route's `send(e.type, e)`
+  // payloads: a phase event stores { phase }, an explore event stores { event }.
+  let persistId: string | null = null;
   const emit = async (e: AnalyzeEvent) => {
-    if (opts.onEvent) await opts.onEvent(e);
+    let seq: number | undefined;
+    if (persistId) {
+      // `data` is byte-identical to the POST route's SSE payload for this type,
+      // so replaying run_events reproduces the original live stream exactly.
+      const data =
+        e.type === 'phase'
+          ? { phase: e.phase }
+          : e.type === 'explore'
+            ? { event: e.event }
+            : e.type === 'report'
+              ? e.report
+              : { message: e.message };
+      seq = await appendEvent(persistId, e.type, data, deps.db);
+    }
+    if (opts.onEvent) await opts.onEvent(e, seq);
   };
 
   // SSRF guard + identifier validation happen here, before any I/O.
@@ -171,6 +224,10 @@ export async function analyzeRepo(
   }
 
   const id = analysis.id;
+  // From here on the row exists and is the one we run, so begin persisting every
+  // emitted event to run_events for reconnect/replay + in-flight attach.
+  persistId = id;
+  if (opts.onStart) await opts.onStart(id);
   const reader = (path: string, start?: number, end?: number) =>
     deps.readFile(ref, commitSha, path, start, end);
 
@@ -223,8 +280,10 @@ export async function analyzeRepo(
       task: `Analyze the repository ${repo} to help a new engineer get oriented.`,
       budget: opts.budget,
       now: deps.now,
+      // emit() persists the explore event to run_events (as type 'explore',
+      // data { event }) in the same shape the SSE client parses, so there is no
+      // separate appendEvent here — that would double-write in the wrong shape.
       onEvent: async (event) => {
-        await appendEvent(id, event.type, event, deps.db);
         await emit({ type: 'explore', event });
       },
     });
@@ -249,15 +308,31 @@ export async function analyzeRepo(
     const validated = await validateReport(synth.report, reader);
 
     await saveReport(id, validated.report, validated.report.summary, deps.db);
-    await setStatus(id, 'succeeded', {}, deps.db);
     await emit({ type: 'phase', phase: 'done' });
+
+    const costMicroUsd = exploration.costMicroUsd + synth.costMicroUsd;
+    const reportPayload: ReportEventPayload = {
+      analysisId: id,
+      repo,
+      commitSha,
+      cached: false,
+      costMicroUsd,
+      stats: validated.stats,
+      report: validated.report,
+    };
+    // Persist + emit the terminal `report` event BEFORE flipping status to
+    // 'succeeded'. An attaching/reconnecting client's tail loop stops once the
+    // status goes terminal; writing the event first guarantees it has already
+    // been recorded (and so will be replayed) when that happens — no lost report.
+    await emit({ type: 'report', report: reportPayload });
+    await setStatus(id, 'succeeded', {}, deps.db);
 
     return {
       analysisId: id,
       commitSha,
       report: validated.report,
       stats: validated.stats,
-      costMicroUsd: exploration.costMicroUsd + synth.costMicroUsd,
+      costMicroUsd,
       cached: false,
       telemetry: {
         toolCalls: exploration.toolCalls,
@@ -271,6 +346,12 @@ export async function analyzeRepo(
     // oversize-repo gate), recordedMicroUsd is 0 and the row's $0.40 placeholder
     // is freed so a doomed run doesn't hold budget headroom hostage.
     if (reserved) await setCost(id, recordedMicroUsd, deps.db);
+    // Persist + emit the terminal `error` event BEFORE flipping status to
+    // 'failed' (same ordering rationale as the success path), so an attaching
+    // client always replays a terminal event rather than closing silently. The
+    // message is the same sanitized text the POST route surfaces to the client;
+    // the raw internal error is retained on the row for server-side logs.
+    await emit({ type: 'error', message: (err as Error).message });
     await setStatus(id, 'failed', { error: (err as Error).message }, deps.db);
     throw err;
   }

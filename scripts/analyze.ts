@@ -40,10 +40,12 @@ async function main() {
     onEvent: (e) => {
       if (e.type === 'phase') {
         console.log(`  [${e.phase}]`);
-      } else if (e.event.type === 'tool_call') {
+      } else if (e.type === 'explore' && e.event.type === 'tool_call') {
         console.log(`    tool ${e.event.seq}: ${e.event.name}(${JSON.stringify(e.event.input)})`);
-      } else if (e.event.type === 'cost') {
+      } else if (e.type === 'explore' && e.event.type === 'cost') {
         process.stdout.write(`    cost so far: ${usd(e.event.cumulativeMicroUsd)}\r`);
+      } else if (e.type === 'error') {
+        console.error(`    error: ${e.message}`);
       }
     },
   });

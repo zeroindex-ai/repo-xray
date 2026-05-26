@@ -31,6 +31,10 @@ type ToolCall = { seq: number; name: string; input: unknown };
 // finishes the run and caches it, so re-submitting the same repo returns instantly.
 const RESULT_KEY = 'repo-xray:last-result';
 
+// Cap reconnect attempts so a wedged/stalled analysis can't spin the client in a
+// hot fetch loop. Each attempt re-attaches to the live tail from the last seq seen.
+const MAX_RECONNECTS = 5;
+
 // Human-readable labels for the pipeline phases the API streams. Exploring is the
 // only phase with visible tool activity; the rest (esp. synthesizing) are silent,
 // which is why the pulsing dot + ticking clock carry the "still working" signal.
@@ -71,6 +75,11 @@ export default function Home() {
   const [error, setError] = useState('');
   const [elapsedMs, setElapsedMs] = useState(0);
   const startedAtRef = useRef(0);
+  // Reconnect bookkeeping: the analysis id (learned from the early `id` event) and
+  // the last run_events seq seen (the SSE `id:` line). If the POST stream drops
+  // before a terminal event, we reconnect to GET …/events?afterSeq=<lastSeq>.
+  const analysisIdRef = useRef<string | null>(null);
+  const lastSeqRef = useRef(0);
 
   // Tick a wall-clock while a run is in flight — the strongest "not stuck" signal,
   // since the synthesis phase streams no tool calls and can run 20–40s silently.
@@ -96,6 +105,74 @@ export default function Home() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Consume one SSE stream (the POST run OR a GET …/events reconnect), updating
+  // the live UI. Returns true once a terminal (report/error) event is processed;
+  // returns false if the stream ends WITHOUT a terminal (a dropped connection),
+  // so the caller can reconnect. A surfaced `error` event throws (caught upstream).
+  // Tracks the analysis id (early `id` event) + last seq seen (SSE `id:` line) so
+  // a reconnect resumes from the right cursor without dupes.
+  async function consumeStream(body: ReadableStream<Uint8Array>): Promise<boolean> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let sawTerminal = false;
+    for (;;) {
+      const { done, value: chunk } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(chunk, { stream: true });
+      let idx: number;
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let evt = 'message';
+        let data = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('id:')) {
+            const seq = Number(line.slice(3).trim());
+            if (Number.isFinite(seq) && seq > lastSeqRef.current) lastSeqRef.current = seq;
+          } else if (line.startsWith('event:')) evt = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (!data) continue;
+        const parsed = JSON.parse(data) as Record<string, unknown>;
+        if (evt === 'id') {
+          // Early control event: learn the analysis id so we can reconnect mid-run.
+          if (typeof parsed.analysisId === 'string') analysisIdRef.current = parsed.analysisId;
+        } else if (evt === 'phase') {
+          setPhase(String(parsed.phase));
+        } else if (evt === 'explore') {
+          const ev = parsed.event as Record<string, unknown>;
+          if (ev.type === 'tool_call') {
+            const seq = Number(ev.seq);
+            // De-dupe on reconnect: a replay re-emits backlog tool calls, so skip
+            // any seq we've already rendered (the explore seq is stable per run).
+            setTools((t) =>
+              t.some((x) => x.seq === seq) ? t : [...t, { seq, name: String(ev.name), input: ev.input }]
+            );
+          } else if (ev.type === 'cost') {
+            setCost(Number(ev.cumulativeMicroUsd));
+          }
+        } else if (evt === 'report') {
+          sawTerminal = true;
+          const payload = parsed as unknown as ReportPayload;
+          if (!payload.analysisId && analysisIdRef.current) payload.analysisId = analysisIdRef.current;
+          setResult(payload);
+          setCost(payload.costMicroUsd);
+          setStatus('done');
+          try {
+            sessionStorage.setItem(RESULT_KEY, JSON.stringify(payload));
+          } catch {
+            /* persistence is best-effort; the report still renders this session */
+          }
+        } else if (evt === 'error') {
+          sawTerminal = true;
+          throw new Error(String(parsed.message));
+        }
+      }
+    }
+    return sawTerminal;
+  }
+
   async function run(e: React.FormEvent) {
     e.preventDefault();
     const value = repo.trim();
@@ -108,6 +185,8 @@ export default function Home() {
     setError('');
     setElapsedMs(0);
     startedAtRef.current = Date.now();
+    analysisIdRef.current = null;
+    lastSeqRef.current = 0;
     try {
       sessionStorage.removeItem(RESULT_KEY); // drop any stale restored result
     } catch {
@@ -125,52 +204,24 @@ export default function Home() {
         throw new Error(body?.error ?? `Request failed (${res.status})`);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      let sawTerminal = false;
-      for (;;) {
-        const { done, value: chunk } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(chunk, { stream: true });
-        let idx: number;
-        while ((idx = buf.indexOf('\n\n')) !== -1) {
-          const block = buf.slice(0, idx);
-          buf = buf.slice(idx + 2);
-          let evt = 'message';
-          let data = '';
-          for (const line of block.split('\n')) {
-            if (line.startsWith('event:')) evt = line.slice(6).trim();
-            else if (line.startsWith('data:')) data += line.slice(5).trim();
-          }
-          if (!data) continue;
-          const parsed = JSON.parse(data) as Record<string, unknown>;
-          if (evt === 'phase') {
-            setPhase(String(parsed.phase));
-          } else if (evt === 'explore') {
-            const ev = parsed.event as Record<string, unknown>;
-            if (ev.type === 'tool_call') {
-              setTools((t) => [...t, { seq: Number(ev.seq), name: String(ev.name), input: ev.input }]);
-            } else if (ev.type === 'cost') {
-              setCost(Number(ev.cumulativeMicroUsd));
-            }
-          } else if (evt === 'report') {
-            sawTerminal = true;
-            const payload = parsed as unknown as ReportPayload;
-            setResult(payload);
-            setCost(payload.costMicroUsd);
-            setStatus('done');
-            try {
-              sessionStorage.setItem(RESULT_KEY, JSON.stringify(payload));
-            } catch {
-              /* persistence is best-effort; the report still renders this session */
-            }
-          } else if (evt === 'error') {
-            sawTerminal = true;
-            throw new Error(String(parsed.message));
-          }
-        }
+      let sawTerminal = await consumeStream(res.body);
+
+      // Reconnect loop: if the stream ended (connection dropped / tab refresh blip)
+      // before a terminal event AND we know the analysis id, resume live progress
+      // from GET …/events?afterSeq=<last seq seen>. The server-side run keeps going
+      // regardless; this just re-attaches the UI. Bounded retries avoid a hot loop
+      // if the analysis is genuinely wedged.
+      let attempts = 0;
+      while (!sawTerminal && analysisIdRef.current && attempts < MAX_RECONNECTS) {
+        attempts += 1;
+        const id = analysisIdRef.current;
+        const reconnect = await fetch(
+          `/api/analyze/${encodeURIComponent(id)}/events?afterSeq=${lastSeqRef.current}`
+        );
+        if (!reconnect.ok || !reconnect.body) break;
+        sawTerminal = await consumeStream(reconnect.body);
       }
+
       if (!sawTerminal) throw new Error('The analysis ended unexpectedly.');
     } catch (err) {
       setError((err as Error).message);

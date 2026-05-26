@@ -4,6 +4,7 @@ import { migrate } from './migrate';
 import {
   addCost,
   appendEvent,
+  claimOwnership,
   findByRepoSha,
   getAnalysis,
   getEvents,
@@ -13,6 +14,7 @@ import {
   listAnalyses,
   saveReport,
   setStatus,
+  STALE_RUNNING_MS,
 } from './analyses';
 
 let client: Client;
@@ -76,6 +78,67 @@ describe('setStatus', () => {
     expect(a?.status).toBe('failed');
     expect(a?.error).toBe('boom');
     expect(typeof a?.completedAt).toBe('number');
+  });
+});
+
+describe('claimOwnership', () => {
+  it('claims a queued row and flips it to running', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    expect(analysis.status).toBe('queued');
+    const won = await claimOwnership(analysis.id, client);
+    expect(won).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('re-claims a failed row (retry of a prior failure)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'failed', { error: 'boom' }, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('does NOT claim a row already running or succeeded', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+
+    await setStatus(analysis.id, 'succeeded', {}, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+  });
+
+  it('reclaims a STALE running row (a timed-out/crashed run that never went terminal)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    // Age updated_at past the staleness cutoff to simulate a run Vercel killed at
+    // maxDuration (no terminal status-set ever ran). A fresh claim must win and
+    // re-run it instead of being permanently locked out of this commit.
+    const stale = Date.now() - STALE_RUNNING_MS - 60_000;
+    await client.execute({ sql: 'UPDATE analyses SET updated_at = ? WHERE id = ?', args: [stale, analysis.id] });
+    expect(await claimOwnership(analysis.id, client)).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('does NOT steal a FRESH running row (proves a live run is safe)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    // updated_at is now (well within STALE_RUNNING_MS) — a healthy in-flight run.
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+    // Even a row aged to just UNDER the cutoff must not be reclaimed.
+    const recent = Date.now() - (STALE_RUNNING_MS - 60_000);
+    await client.execute({ sql: 'UPDATE analyses SET updated_at = ? WHERE id = ?', args: [recent, analysis.id] });
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+  });
+
+  it('two racers contend for one row — exactly one wins the transition', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    // Fire both claims against the same queued row. The guarded UPDATE serializes
+    // on the row, so precisely one sees a row returned (wins); the other sees none.
+    const results = await Promise.all([
+      claimOwnership(analysis.id, client),
+      claimOwnership(analysis.id, client),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
   });
 });
 
