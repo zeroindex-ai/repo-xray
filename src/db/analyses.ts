@@ -156,29 +156,53 @@ export async function getAnalysis(id: string, client: Conn = db()): Promise<Anal
 }
 
 /**
+ * A run is killed by Vercel at the route's `maxDuration` (300s). When that
+ * happens (or the process crashes) the terminal status-set never runs, so the
+ * row is stranded at 'running' forever. STALE_RUNNING_MS is the age past which a
+ * 'running' row MUST be a dead run and is safe to reclaim.
+ *
+ * It is deliberately set ABOVE maxDuration (300s): a *healthy* run cannot stay
+ * 'running' longer than maxDuration — Vercel hard-kills the function at 300s and
+ * the terminal status-set never executes — so any row 'running' for >360s is
+ * provably a corpse. Reclaiming it therefore cannot steal a live run or cause a
+ * double-spend. A cutoff at or below maxDuration (≤300s) WOULD risk stealing a
+ * legitimately-long but still-alive run, so this must stay above 300s.
+ *
+ * (Healthy runs also bump `updated_at` continuously mid-flight — setStatus,
+ * every appendEvent phase/explore event, and the setCost reconciliations — so a
+ * live run's `updated_at` stays fresh well within the window; that only makes
+ * the staleness test safer, never falser.)
+ */
+export const STALE_RUNNING_MS = 360_000; // 6 min, > the 300s route maxDuration
+
+/**
  * Atomically claim the right to run an analysis. A guarded UPDATE flips a row to
- * 'running' only if it is currently 'queued' or 'failed' (i.e. nobody is already
- * running it). RETURNING is gated by the WHERE, so concurrent callers serialize
- * on the row write: exactly one sees a row come back and wins ownership; the
- * losers see an empty result and must attach to the winner's run instead of
- * starting a second paid analysis.
+ * 'running' only if it is currently 'queued', 'failed', or a STALE 'running'
+ * (a prior run that hit maxDuration / crashed and never wrote a terminal event —
+ * its `updated_at` is older than STALE_RUNNING_MS, so reclaiming it can't steal a
+ * live run). RETURNING is gated by the WHERE, so concurrent callers serialize on
+ * the row write: exactly one sees a row come back and wins ownership; the losers
+ * see an empty result and must attach to the winner's run instead of starting a
+ * second paid analysis.
  *
  * NOTE: libsql reports rowsAffected=0 for RETURNING statements, so the decision
  * MUST key off whether a row came back — never rowsAffected (mirrors the
  * rate-limiter's guarded-UPSERT-with-RETURNING pattern in lib/guards.ts).
  *
  * Returns true if THIS caller won the transition (status is now 'running' and it
- * owns the compute), false otherwise (another run already owns it, or the row is
- * already succeeded). The caller must ensure the row exists first
+ * owns the compute), false otherwise (another run already owns it and is alive,
+ * or the row is already succeeded). The caller must ensure the row exists first
  * (getOrCreateAnalysis handles that).
  */
 export async function claimOwnership(id: string, client: Conn = db()): Promise<boolean> {
   const res = await client.execute({
     sql: `UPDATE analyses
           SET status = 'running', updated_at = unixepoch() * 1000
-          WHERE id = :id AND status IN ('queued', 'failed')
+          WHERE id = :id
+            AND ( status IN ('queued', 'failed')
+                  OR (status = 'running' AND updated_at < (unixepoch() * 1000) - :staleMs) )
           RETURNING id`,
-    args: { id },
+    args: { id, staleMs: STALE_RUNNING_MS },
   });
   return res.rows.length > 0;
 }

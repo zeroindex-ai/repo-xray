@@ -14,6 +14,7 @@ import {
   listAnalyses,
   saveReport,
   setStatus,
+  STALE_RUNNING_MS,
 } from './analyses';
 
 let client: Client;
@@ -102,6 +103,29 @@ describe('claimOwnership', () => {
     expect(await claimOwnership(analysis.id, client)).toBe(false);
 
     await setStatus(analysis.id, 'succeeded', {}, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+  });
+
+  it('reclaims a STALE running row (a timed-out/crashed run that never went terminal)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    // Age updated_at past the staleness cutoff to simulate a run Vercel killed at
+    // maxDuration (no terminal status-set ever ran). A fresh claim must win and
+    // re-run it instead of being permanently locked out of this commit.
+    const stale = Date.now() - STALE_RUNNING_MS - 60_000;
+    await client.execute({ sql: 'UPDATE analyses SET updated_at = ? WHERE id = ?', args: [stale, analysis.id] });
+    expect(await claimOwnership(analysis.id, client)).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('does NOT steal a FRESH running row (proves a live run is safe)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    // updated_at is now (well within STALE_RUNNING_MS) — a healthy in-flight run.
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+    // Even a row aged to just UNDER the cutoff must not be reclaimed.
+    const recent = Date.now() - (STALE_RUNNING_MS - 60_000);
+    await client.execute({ sql: 'UPDATE analyses SET updated_at = ? WHERE id = ?', args: [recent, analysis.id] });
     expect(await claimOwnership(analysis.id, client)).toBe(false);
   });
 

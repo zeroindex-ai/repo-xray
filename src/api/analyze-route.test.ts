@@ -10,7 +10,7 @@
 import { createClient, type Client } from '@libsql/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { migrate } from '../db/migrate';
-import { appendEvent, getAnalysis, setStatus } from '../db/analyses';
+import { appendEvent, getAnalysis, getOrCreateAnalysis, setStatus, STALE_RUNNING_MS } from '../db/analyses';
 
 // One in-memory client shared by the mocked db() and the mocked live deps, so the
 // route's default-client calls (getOrCreateAnalysis/claimOwnership/guards) and the
@@ -156,6 +156,31 @@ describe('POST /api/analyze — same-commit dedupe', () => {
     expect(analyzeRepo).toHaveBeenCalledTimes(1);
     const count = await client.execute('SELECT COUNT(*) AS n FROM analyses');
     expect(Number((count.rows[0] as Record<string, unknown>).n)).toBe(1);
+  });
+
+  it('a STALE running row for the same commit is RECLAIMED — a fresh agent run starts (not an infinite attach)', async () => {
+    // Simulate a prior run that Vercel killed at maxDuration: the row is stranded
+    // at 'running' with no terminal event, and its updated_at is past the cutoff.
+    // Pre-dedupe this poisoned the commit forever (claim never won from 'running').
+    const { analysis } = await getOrCreateAnalysis(
+      { owner: 'acme', repo: 'widget', commitSha: 'sha-abc', ref: null },
+      client
+    );
+    await setStatus(analysis.id, 'running', {}, client);
+    const stale = Date.now() - STALE_RUNNING_MS - 60_000;
+    await client.execute({ sql: 'UPDATE analyses SET updated_at = ? WHERE id = ?', args: [stale, analysis.id] });
+
+    const res = await post('acme/widget');
+    const text = await drain(res);
+
+    // The route reclaimed the stale row and OWNED a fresh run rather than attaching
+    // and tailing forever to a dead run.
+    expect(analyzeRepo).toHaveBeenCalledTimes(1);
+    expect(text).toContain('event: report');
+    // Still one row (reclaimed in place, deduped by owner/repo/sha) and now succeeded.
+    const count = await client.execute('SELECT COUNT(*) AS n FROM analyses');
+    expect(Number((count.rows[0] as Record<string, unknown>).n)).toBe(1);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('succeeded');
   });
 
   it('a completed (succeeded) commit serves the cache — no second agent run beyond the seeding one', async () => {
