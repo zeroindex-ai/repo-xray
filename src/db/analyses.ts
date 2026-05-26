@@ -155,6 +155,34 @@ export async function getAnalysis(id: string, client: Conn = db()): Promise<Anal
   return res.rows[0] ? rowToAnalysis(res.rows[0] as Record<string, unknown>) : null;
 }
 
+/**
+ * Atomically claim the right to run an analysis. A guarded UPDATE flips a row to
+ * 'running' only if it is currently 'queued' or 'failed' (i.e. nobody is already
+ * running it). RETURNING is gated by the WHERE, so concurrent callers serialize
+ * on the row write: exactly one sees a row come back and wins ownership; the
+ * losers see an empty result and must attach to the winner's run instead of
+ * starting a second paid analysis.
+ *
+ * NOTE: libsql reports rowsAffected=0 for RETURNING statements, so the decision
+ * MUST key off whether a row came back — never rowsAffected (mirrors the
+ * rate-limiter's guarded-UPSERT-with-RETURNING pattern in lib/guards.ts).
+ *
+ * Returns true if THIS caller won the transition (status is now 'running' and it
+ * owns the compute), false otherwise (another run already owns it, or the row is
+ * already succeeded). The caller must ensure the row exists first
+ * (getOrCreateAnalysis handles that).
+ */
+export async function claimOwnership(id: string, client: Conn = db()): Promise<boolean> {
+  const res = await client.execute({
+    sql: `UPDATE analyses
+          SET status = 'running', updated_at = unixepoch() * 1000
+          WHERE id = :id AND status IN ('queued', 'failed')
+          RETURNING id`,
+    args: { id },
+  });
+  return res.rows.length > 0;
+}
+
 export async function setStatus(
   id: string,
   status: AnalysisStatus,

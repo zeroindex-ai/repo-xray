@@ -4,6 +4,7 @@ import { migrate } from './migrate';
 import {
   addCost,
   appendEvent,
+  claimOwnership,
   findByRepoSha,
   getAnalysis,
   getEvents,
@@ -76,6 +77,44 @@ describe('setStatus', () => {
     expect(a?.status).toBe('failed');
     expect(a?.error).toBe('boom');
     expect(typeof a?.completedAt).toBe('number');
+  });
+});
+
+describe('claimOwnership', () => {
+  it('claims a queued row and flips it to running', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    expect(analysis.status).toBe('queued');
+    const won = await claimOwnership(analysis.id, client);
+    expect(won).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('re-claims a failed row (retry of a prior failure)', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'failed', { error: 'boom' }, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(true);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
+  });
+
+  it('does NOT claim a row already running or succeeded', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    await setStatus(analysis.id, 'running', {}, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+
+    await setStatus(analysis.id, 'succeeded', {}, client);
+    expect(await claimOwnership(analysis.id, client)).toBe(false);
+  });
+
+  it('two racers contend for one row — exactly one wins the transition', async () => {
+    const { analysis } = await getOrCreateAnalysis(base, client);
+    // Fire both claims against the same queued row. The guarded UPDATE serializes
+    // on the row, so precisely one sees a row returned (wins); the other sees none.
+    const results = await Promise.all([
+      claimOwnership(analysis.id, client),
+      claimOwnership(analysis.id, client),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect((await getAnalysis(analysis.id, client))?.status).toBe('running');
   });
 });
 
