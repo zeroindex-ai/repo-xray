@@ -1,5 +1,6 @@
 # Repo X-Ray
 
+> **Phase:** Production
 > Status: **live** at [xray.zeroindex.ai](https://xray.zeroindex.ai)
 
 Point Repo X-Ray at a public GitHub repository and an agent explores the code with tools — reading the files a new engineer would read first — then returns an onboarding guide, an architecture map, and risk hotspots. Every statement links to the exact `file:line` on GitHub, so nothing has to be taken on faith.
