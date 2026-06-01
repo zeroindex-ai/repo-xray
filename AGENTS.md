@@ -81,7 +81,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Model picks are deliberate and documented** in PROJECT.md — exploration runs on
   Sonnet 4.6 (cheap, many tool calls), synthesis runs on Opus 4.7 (one expensive call),
   and the Sonnet-vs-Opus synthesis A/B is recorded with numbers. Pick by eval, not vibe.
-  Prompt caching where it helps ([[claude-api]]).
+  Prompt caching where it helps.
 - **Cited output must be escaped** — HTML-escape any model text rendered to the page
   (five-entity coverage). The deterministic validation step re-reads every citation and
   prunes any whose quote doesn't resolve, so 100% of shown citations are verifiable.
