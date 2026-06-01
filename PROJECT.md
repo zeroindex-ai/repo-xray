@@ -185,7 +185,7 @@ Ordered, not calendared.
 - [x] Eval set: golden repos + onboarding-quality LLM judge + deterministic citation-resolution check.
 - [x] Deploy to `xray.zeroindex.ai`; admin view behind owner-only Basic Auth.
 - [ ] Durable workflow wiring (fetch → explore → synthesize → validate → persist) with retries. _(v0.1 runs the pipeline inside the SSE handler; WDK is the durability upgrade — see Known constraints)_
-- [ ] In-flight dedupe: short-circuit a concurrent submit of the same *uncached* commit onto the already-`running` analysis instead of starting a second paid pipeline. _(v0.1 dedupes only finished runs; the global reservation still bounds total daily spend)_
+- [x] In-flight dedupe: a concurrent submit of the same *uncached* commit attaches to the already-`running` analysis (via `claimOwnership`, `src/db/analyses.ts`) instead of starting a second paid pipeline. _(completed runs serve the cached report; in-flight runs attach; the global reservation still bounds total daily spend)_
 - [ ] Content `search` (the agent's `search` tool currently matches file paths only, not file contents) and OSV dependency scanning — both v0.2.
 
 ## Decision log (running)
@@ -204,7 +204,7 @@ Newest first. Every entry dated.
 
 ## Known constraints & future work
 
-- **Cost** — the per-run budget, global daily ceiling (atomic reservation, §2), and SHA-dedupe cache are load-bearing, not optional. Known residual: the SHA cache short-circuits only *finished* runs, so two near-simultaneous submits of the same *uncached* commit can each run the full paid pipeline (the global reservation still bounds the day's total spend; the per-commit double-spend is the gap). In-flight (`status==='running'`) dedupe is a roadmap item.
+- **Cost** — the per-run budget, the global daily ceiling (atomic reservation, §2), the SHA-dedupe cache (a *finished* run for a commit serves its cached report), and in-flight dedupe (a concurrent submit of the same *uncached* commit attaches to the `running` analysis via `claimOwnership` rather than starting a second paid pipeline) are all load-bearing, not optional — together they bound both per-commit and daily spend.
 - **Durability** — v0.1 runs the steps inline inside the streaming handler; the headline roadmap item is the resume-rather-than-restart (and re-spend) upgrade via a step-based workflow engine (WDK): discrete `fetch → explore → synthesize → validate → persist` steps with per-step retries.
 - **Large repos** — the agent must prioritize ruthlessly; the budget stop is what guarantees termination. File-count/size caps decline gracefully past `MAX_REPO_FILES`.
 - **GitHub rate limits** — needs a token for any real throughput (60→5000/hr).
